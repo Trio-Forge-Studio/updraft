@@ -46,6 +46,9 @@ fn changed_fields(a: &Op, b: &Op, old: &Registry, new: &Registry) -> Vec<&'stati
             fields.push(name);
         }
     };
+    check("name", a.name == b.name);
+    check("server", a.server == b.server);
+    check("operationId", a.operation_id == b.operation_id);
     check(
         "params",
         a.params

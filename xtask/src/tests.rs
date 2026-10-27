@@ -127,3 +127,57 @@ fn diff_reports_reachable_schema_changes() {
     let changes = diff::diff(&old, &new);
     assert!(changes.changed.iter().any(|c| c.name == "assets.get-asset" && c.fields.contains(&"schema")));
 }
+
+#[test]
+fn reused_operation_id_cannot_take_a_surviving_keys_name() {
+    let (_, _, previous) = inputs();
+    let survivor = previous.op("assets.get-asset").unwrap().clone();
+    let mut added = survivor.clone();
+    added.key = "GET /assets/v2/assets/{assetId}".into();
+    added.path = "/assets/v2/assets/{assetId}".into();
+    let mut ops = vec![added, survivor.clone()];
+    for op in &mut ops {
+        op.name.clear();
+    }
+    naming::assign(&mut ops, Some(&previous), &mut build::Report::default());
+    assert_eq!(
+        ops[1].name, survivor.name,
+        "a surviving key keeps its name even if another path reuses its operationId"
+    );
+    assert_ne!(ops[0].name, survivor.name);
+}
+
+#[test]
+fn coverage_checks_every_success_response() {
+    let (mut spec, overlay, previous) = inputs();
+    spec["paths"]["/assets/v1/assets/{assetId}"]["get"]["responses"]["201"] =
+        json!({"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Operation"}}}});
+    let errors = build::build(build::Input {
+        spec: &spec,
+        overlay: &overlay,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+    })
+    .unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.contains("Operation success response")),
+        "a secondary 2xx response cannot evade completion coverage"
+    );
+}
+
+#[test]
+fn diff_reports_command_identity_and_server_changes() {
+    let (_, _, old) = inputs();
+    let mut new = old.clone();
+    let op = new.ops.iter_mut().find(|op| op.name == "assets.get-asset").unwrap();
+    op.name = "assets.renamed".into();
+    op.server = Server::Thumbnails;
+    op.operation_id = Some("NewIdentity".into());
+    let changes = diff::diff(&old, &new);
+    assert!(
+        changes.changed.iter().any(|op| op.fields.contains(&"name")
+            && op.fields.contains(&"server")
+            && op.fields.contains(&"operationId")),
+        "spec updates report changes to routing and command identity"
+    );
+}

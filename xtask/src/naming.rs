@@ -8,9 +8,14 @@ use crate::build::{Collision, Report};
 pub fn assign(ops: &mut [Op], previous: Option<&Registry>, report: &mut Report) {
     let mut taken: BTreeSet<String> = BTreeSet::new();
     if let Some(previous) = previous {
+        let surviving: BTreeSet<&str> = ops.iter().map(|op| op.key.as_str()).collect();
         let by_key: BTreeMap<&str, &str> = previous.ops.iter().map(|op| (op.key.as_str(), op.name.as_str())).collect();
-        let by_id: BTreeMap<&str, &str> =
-            previous.ops.iter().filter_map(|op| op.operation_id.as_deref().map(|id| (id, op.name.as_str()))).collect();
+        let by_id: BTreeMap<&str, &str> = previous
+            .ops
+            .iter()
+            .filter(|op| !surviving.contains(op.key.as_str()))
+            .filter_map(|op| op.operation_id.as_deref().map(|id| (id, op.name.as_str())))
+            .collect();
         for op in ops.iter_mut().filter(|op| op.name.is_empty()) {
             let kept = by_key.get(op.key.as_str()).or_else(|| op.operation_id.as_deref().and_then(|id| by_id.get(id)));
             if let Some(name) = kept.filter(|name| !taken.contains(**name)) {

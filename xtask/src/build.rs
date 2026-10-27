@@ -97,6 +97,7 @@ pub fn build(input: Input<'_>) -> Result<(Registry, Report), Vec<String>> {
     report.paginated = drafts.iter().filter(|op| op.pagination.is_some()).count();
     report.long_running = drafts.iter().filter(|op| op.completion.is_some()).count();
     errors.extend(completion_coverage(&drafts, &schemas));
+    errors.extend(upstream_completion_coverage(spec, &drafts));
 
     if errors.is_empty() { Ok((Registry { source: input.source, ops: drafts, schemas }, report)) } else { Err(errors) }
 }
@@ -117,6 +118,33 @@ pub fn completion_coverage(ops: &[Op], schemas: &BTreeMap<String, Shape>) -> Vec
                 && !op.patches.iter().any(|note| note.starts_with("No completion:"))
         })
         .map(|op| format!("{} returns an Operation but has no completion or overlay explanation", op.key))
+        .collect()
+}
+
+fn upstream_completion_coverage(spec: &Value, ops: &[Op]) -> Vec<String> {
+    ops.iter()
+        .filter(|op| op.completion.is_none() && !op.patches.iter().any(|note| note.starts_with("No completion:")))
+        .filter(|op| {
+            let method = method_label(op.method).to_ascii_lowercase();
+            spec["paths"][&op.path][&method]["responses"]
+                .as_object()
+                .into_iter()
+                .flatten()
+                .filter(|(status, _)| status.starts_with('2'))
+                .any(|(_, response)| {
+                    deref(spec, response)["content"].as_object().into_iter().flatten().any(|(_, media)| {
+                        let schema = &media["schema"];
+                        let named = schema["$ref"]
+                            .as_str()
+                            .is_some_and(|name| name.ends_with("/Operation") || name.ends_with(".Operation"));
+                        let fields = properties(spec, schema);
+                        named
+                            || (fields.contains_key("done")
+                                && (fields.contains_key("response") || fields.contains_key("error")))
+                    })
+                })
+        })
+        .map(|op| format!("{} has an Operation success response but no completion or overlay explanation", op.key))
         .collect()
 }
 
