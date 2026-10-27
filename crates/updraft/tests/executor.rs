@@ -251,6 +251,67 @@ fn discovery_needs_no_key() {
     let out = command("http://127.0.0.1:1").args(["describe", "universes.create-place-version"]).output().unwrap();
     assert_eq!(code(&out), 0);
     let d = document(&out);
-    assert_eq!(d["body"]["media"]["content_type"], "application/octet-stream");
+    assert_eq!(d["body"]["contentType"], "application/octet-stream");
     assert_eq!(d["retry"]["attempts"], 4);
+}
+#[test]
+fn describe_matches_the_public_contract() {
+    let out = command("http://127.0.0.1:1").args(["describe", "universes.create-place-version"]).output().unwrap();
+    let d = document(&out);
+    assert_eq!(code(&out), 0);
+    assert_eq!(d["body"], json!({"required":true,"type":"binary","contentType":"application/octet-stream"}));
+    assert_eq!(d["response"]["type"], "object");
+    assert_eq!(d["response"]["fields"][0]["name"], "versionNumber");
+    assert_eq!(d["response"]["fields"][0]["type"], "integer");
+    assert_eq!(d["params"][0]["type"], "integer");
+    assert_eq!(d["retry"]["delaySeconds"], 60);
+    assert_eq!(d["legacy"], false);
+}
+#[test]
+fn array_parameters_use_repeated_query_names() {
+    let server = MockServer::start();
+    let m = server.mock(|w, t| {
+        w.method(GET)
+            .path("/legacy-develop/v1/universes/multiget/permissions")
+            .query_param("ids", "1")
+            .query_param("ids", "2");
+        t.json_body(json!([]));
+    });
+    let out = command(&server.base_url())
+        .args(["call", "GET", "/legacy-develop/v1/universes/multiget/permissions", "ids=1", "ids=2"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 0, "{}", document(&out));
+    m.assert_calls(1);
+    let out = command(&server.base_url())
+        .args(["call", "GET", "/legacy-develop/v1/universes/multiget/permissions", "ids=1,2"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 2, "each repeated array parameter validates its item kind");
+    m.assert_calls(1);
+}
+#[test]
+fn malformed_introspection_is_a_protocol_failure() {
+    let server = MockServer::start();
+    let m = server.mock(|w, t| {
+        w.method(POST).path("/api-keys/v1/introspect");
+        t.json_body(json!({"echo":KEY}));
+    });
+    let out = command(&server.base_url()).args(["auth", "check"]).output().unwrap();
+    assert_eq!(code(&out), 7);
+    assert_eq!(document(&out)["error"]["kind"], "unavailable");
+    m.assert_calls(1);
+}
+#[test]
+fn invalid_origin_never_sends_a_request() {
+    for origin in [
+        "http://127.0.0.1:1/?q=private",
+        "http://127.0.0.1:1/#fragment",
+        "http://user:password@127.0.0.1:1",
+        "file:///private",
+    ] {
+        let out = command(origin).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+        assert_eq!(code(&out), 2);
+        assert_eq!(document(&out)["error"]["kind"], "usage");
+    }
 }

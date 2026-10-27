@@ -6,6 +6,33 @@ use std::path::PathBuf;
 use updraft_registry::{Auth, Op};
 
 pub struct Secret(String);
+#[derive(Deserialize)]
+pub struct Introspection {
+    pub name: String,
+    pub enabled: bool,
+    pub expired: bool,
+    scopes: Vec<IntrospectedScope>,
+}
+#[derive(Deserialize)]
+struct IntrospectedScope {
+    name: String,
+    operations: Vec<String>,
+}
+impl Introspection {
+    pub fn parse(value: serde_json::Value) -> Result<Self, Failure> {
+        serde_json::from_value(value).map_err(|_| Failure::unavailable("introspection returned an invalid response"))
+    }
+    pub fn scopes(&self) -> Vec<String> {
+        let mut scopes: Vec<_> = self
+            .scopes
+            .iter()
+            .flat_map(|scope| scope.operations.iter().map(|op| format!("{}:{op}", scope.name)))
+            .collect();
+        scopes.sort();
+        scopes.dedup();
+        scopes
+    }
+}
 impl Secret {
     pub(crate) fn expose(&self) -> &str {
         &self.0

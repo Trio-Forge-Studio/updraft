@@ -144,19 +144,9 @@ fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
                 bytes: serde_json::to_vec(&json!({"apiKey":secret.expose()})).expect("a JSON value serializes"),
             };
             let reply = executor.send(&Call::new(introspect, vec![], vec![], Some(body))?)?.json()?;
-            let mut scopes = vec![];
-            if let Some(entries) = reply["scopes"].as_array() {
-                for entry in entries {
-                    if let (Some(name), Some(operations)) = (entry["name"].as_str(), entry["operations"].as_array()) {
-                        for operation in operations.iter().filter_map(Value::as_str) {
-                            scopes.push(format!("{name}:{operation}"));
-                        }
-                    }
-                }
-            }
-            scopes.sort();
-            scopes.dedup();
-            if reply["enabled"] == false || reply["expired"] == true {
+            let reply = auth::Introspection::parse(reply)?;
+            let scopes = reply.scopes();
+            if !reply.enabled || reply.expired {
                 return Err(auth::auth_error(primary, source.as_ref(), &config, "the key is disabled or expired"));
             }
             if for_operation.is_some()
@@ -177,7 +167,7 @@ fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
                 }
             }
             Ok(
-                json!({"keySource":source.as_ref().map(auth::KeySource::label),"name":reply["name"],"enabled":reply["enabled"],"expired":reply["expired"],"scopes":scopes}),
+                json!({"keySource":source.as_ref().map(auth::KeySource::label),"name":reply.name,"enabled":reply.enabled,"expired":reply.expired,"scopes":scopes}),
             )
         }
         _ => unreachable!("discovery and profiles returned before execution"),

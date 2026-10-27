@@ -69,6 +69,7 @@ impl<'a> Executor<'a> {
                 || !url.username().is_empty()
                 || url.password().is_some()
                 || url.query().is_some()
+                || url.fragment().is_some()
                 || url.path() != "/"
             {
                 return Err(Failure::usage("UPDRAFT_ORIGIN must be an HTTP origin"));
@@ -110,8 +111,8 @@ impl<'a> Executor<'a> {
                 );
             }
             self.out.trace(&format!("{} {}", request.method(), op.path));
-            let timeout =
-                call.timeout().unwrap_or_else(|| Duration::from_secs(if op.method == Method::Get { 30 } else { 120 }));
+            let request_timeout = Duration::from_secs(if op.method == Method::Get { 30 } else { 120 });
+            let timeout = call.timeout().map_or(request_timeout, |remaining| remaining.min(request_timeout));
             let mut saved = None;
             let client = if download { &self.download_agent } else { &self.agent };
             let attempt = match request.with_agent(client).configure().timeout_global(Some(timeout)).run() {

@@ -120,7 +120,9 @@ impl<'r> Call<'r> {
                 }
                 match p.location {
                     Location::Query => {
-                        query.push((p.name.clone(), v.join(",")));
+                        for value in v {
+                            query.push((p.name.clone(), value.clone()));
+                        }
                     }
                     Location::Header => {
                         let text = v.join(",");
@@ -257,7 +259,7 @@ fn validate(kind: &ValueKind, text: &str) -> Result<(), ()> {
         ValueKind::Number => text.parse::<f64>().is_ok_and(f64::is_finite),
         ValueKind::Boolean => matches!(text, "true" | "false"),
         ValueKind::Enum { values } => values.iter().any(|v| v == text),
-        ValueKind::Array { items } => text.split(',').all(|v| validate(items, v).is_ok()),
+        ValueKind::Array { items } => validate(items, text).is_ok(),
     };
     if valid { Ok(()) } else { Err(()) }
 }

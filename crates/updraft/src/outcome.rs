@@ -120,6 +120,12 @@ mod tests {
         }
     }
     #[test]
+    fn redirect_row() {
+        assert!(
+            matches!(judge(&op(Safety::Read),Attempt::Redirect("/next".into()),History::default()),Verdict::Redirect(location) if location=="/next")
+        );
+    }
+    #[test]
     fn auth_row() {
         for status in [401, 403] {
             assert_eq!(code(judge(&op(Safety::Unsafe), response(status), History::default())), 3);
