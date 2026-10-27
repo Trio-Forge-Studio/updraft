@@ -1,0 +1,476 @@
+#[path = "support/sequence.rs"]
+mod sequence;
+mod support;
+use sequence::{Response, Server};
+use serde_json::json;
+use support::*;
+fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ChaletAssets.fbx");
+    std::fs::write(&path, "fbx fixture").unwrap();
+    (dir, path)
+}
+fn upload(server: &Server, path: &std::path::Path) -> std::process::Output {
+    command(&server.origin)
+        .args([
+            "asset",
+            "upload",
+            path.to_str().unwrap(),
+            "--group",
+            "12345678901234567890",
+            "--description",
+            "Model for Fragile Delivery.",
+        ])
+        .output()
+        .unwrap()
+}
+#[test]
+fn uploads_one_fbx_with_group_ownership_and_polls_the_accepted_operation() {
+    let server = Server::new(vec![
+        Response::json(json!({"path":"operations/safe-id"})),
+        Response::json(json!({"done":false})),
+        Response::json(json!({"done":true,"response":{"assetId":"12345678901234567890"}})),
+    ]);
+    let (_dir, path) = fixture();
+    let out = upload(&server, &path);
+    assert_eq!(code(&out), 0, "{}", document(&out));
+    let d = document(&out);
+    assert_eq!(d["assetId"], "12345678901234567890");
+    assert_eq!(d["displayName"], "ChaletAssets");
+    assert_eq!(d["assetType"], "Model");
+    let calls = server.requests();
+    assert_eq!(calls.len(), 3);
+    assert!(calls[0].head.starts_with("POST /assets/v1/assets "));
+    assert!(calls[1..].iter().all(|c| c.head.starts_with("GET /assets/v1/operations/safe-id ")));
+    let multipart = String::from_utf8_lossy(&calls[0].body);
+    assert!(multipart.contains("filename=\"ChaletAssets.fbx\""));
+    assert!(multipart.contains("Content-Type: model/fbx"));
+    assert!(multipart.contains("fbx fixture"));
+    let request =
+        multipart.split("Content-Type: application/json\r\n\r\n").nth(1).unwrap().split("\r\n").next().unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(request).unwrap(),
+        json!({"assetType":"Model","displayName":"ChaletAssets","description":"Model for Fragile Delivery.","creationContext":{"creator":{"groupId":"12345678901234567890"}}})
+    );
+    assert!(calls.iter().all(|c| c.head.to_lowercase().contains(&format!("x-api-key: {}", KEY.to_lowercase()))));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("Operation safe-id: waiting"));
+}
+#[test]
+fn rejected_uploads_and_lost_responses_are_distinct_and_never_resent() {
+    let (_dir, path) = fixture();
+    for (reply, expected) in [
+        (Response::Body(403, format!("refused {KEY}")), 3),
+        (Response::Body(400, "rejected".into()), 4),
+        (Response::Reset, 5),
+        (Response::Truncated(200), 5),
+        (Response::Truncated(429), 7),
+        (Response::Truncated(400), 4),
+        (Response::Body(503, "unavailable".into()), 5),
+        (Response::Body(200, "not json".into()), 5),
+        (Response::json(json!({})), 5),
+        (Response::Body(429, "slow".into()), 7),
+    ] {
+        let server = Server::new(vec![reply]);
+        let out = upload(&server, &path);
+        assert_eq!(code(&out), expected, "{}", document(&out));
+        assert_eq!(server.requests().len(), 1, "the upload is sent exactly once");
+        let combined = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+        assert!(!combined.contains(KEY), "key is redacted on every error path");
+        if expected == 5 {
+            assert!(document(&out)["error"]["hint"].as_str().unwrap().contains("Check the group's Creations"));
+        }
+    }
+}
+#[test]
+fn accepts_both_operation_id_shapes_and_rejects_unsafe_paths_after_creation() {
+    let (_dir, path) = fixture();
+    for body in [json!({"operationId":"token"}), json!({"path":"operations/token"})] {
+        let server =
+            Server::new(vec![Response::json(body), Response::json(json!({"done":true,"response":{"assetId":"42"}}))]);
+        let out = upload(&server, &path);
+        assert_eq!(code(&out), 0);
+        assert_eq!(server.requests().len(), 2);
+    }
+    for body in [json!({}), json!({"path":"operations/../bad"}), json!({"operationId":"https://evil/id"})] {
+        let server = Server::new(vec![Response::json(body)]);
+        let out = upload(&server, &path);
+        assert_eq!(code(&out), 5);
+        assert_eq!(server.requests().len(), 1);
+        assert!(document(&out)["error"]["message"].as_str().unwrap().contains("no valid operation ID"));
+    }
+}
+#[test]
+fn invalid_files_and_sizes_never_send_a_request() {
+    let (_dir, path) = fixture();
+    let server = Server::new(vec![]);
+    for size in [0, 20_000_001] {
+        std::fs::OpenOptions::new().write(true).open(&path).unwrap().set_len(size).unwrap();
+        let out = upload(&server, &path);
+        assert_eq!(code(&out), 2);
+    }
+    for file in ["bad.txt", "missing.fbx"] {
+        let out = upload(&server, std::path::Path::new(file));
+        assert_eq!(code(&out), 2);
+    }
+    assert!(server.requests().is_empty());
+}
+#[test]
+fn invalid_arguments_and_resume_paths_never_send_a_request() {
+    let server = Server::new(vec![]);
+    for args in [
+        vec![],
+        vec!["a.fbx", "b.fbx"],
+        vec!["--resume"],
+        vec!["--resume", "../id"],
+        vec!["--resume", "https://evil/id"],
+        vec!["--resume", "operations/id?x"],
+        vec!["--resume", "safe-id", "--group", "35"],
+    ] {
+        let out = command(&server.origin).args(["asset", "upload"]).args(&args).output().unwrap();
+        assert_eq!(code(&out), 2, "{args:?}");
+        document(&out);
+    }
+    for group in ["", "0", "-1", "1e3", "1.5"] {
+        let out = command(&server.origin).args(["asset", "upload", "missing.fbx", "--group", group]).output().unwrap();
+        assert_eq!(code(&out), 2);
+    }
+    let help = command(&server.origin).args(["asset", "upload", "--help"]).output().unwrap();
+    assert_eq!(code(&help), 0, "standard help is the intentional plain-text exception");
+    assert!(server.requests().is_empty());
+}
+#[test]
+fn resumes_without_a_group_and_only_sends_get() {
+    for id in ["safe-id", "operations/safe-id"] {
+        let server = Server::new(vec![Response::json(json!({"done":true,"response":{"assetId":"42"}}))]);
+        let out = command(&server.origin).args(["asset", "upload", "--resume", id]).output().unwrap();
+        assert_eq!(code(&out), 0, "{}", document(&out));
+        let d = document(&out);
+        assert_eq!(d["assetId"], "42");
+        assert!(d["displayName"].is_null() && d["assetType"].is_null());
+        assert_eq!(server.requests().len(), 1);
+        assert!(server.requests()[0].head.starts_with("GET /assets/v1/operations/safe-id "));
+    }
+}
+#[test]
+fn resume_stops_at_each_api_or_protocol_failure_and_retains_recovery() {
+    for (reply, expected, requests) in [
+        (Response::Body(401, "unauthorized".into()), 3, 1),
+        (Response::Body(403, "refused".into()), 3, 1),
+        (Response::Body(404, "missing".into()), 4, 1),
+        (Response::Body(429, format!("slow {KEY}")), 7, 3),
+        (Response::Body(500, "broken".into()), 7, 3),
+        (Response::json(json!({"done":true,"error":{"code":"BAD","message":"reason"}})), 6, 1),
+        (Response::json(json!({"done":true})), 7, 1),
+        (Response::json(json!({"done":true,"response":{"assetId":42}})), 7, 1),
+        (Response::Body(200, "not json".into()), 7, 3),
+        (Response::Reset, 7, 3),
+    ] {
+        let replies = match reply {
+            Response::Body(s, b) => {
+                vec![Response::Body(s, b.clone()), Response::Body(s, b.clone()), Response::Body(s, b)]
+            }
+            other => vec![other, Response::Reset, Response::Reset],
+        };
+        let server = Server::new(replies);
+        let out = command(&server.origin).args(["asset", "upload", "--resume", "safe-id"]).output().unwrap();
+        assert_eq!(code(&out), expected, "{}", document(&out));
+        assert_eq!(server.requests().len(), requests);
+        assert!(server.requests().iter().all(|c| c.head.starts_with("GET ")));
+        assert_eq!(document(&out)["error"]["resume"], "updraft asset upload --resume safe-id");
+        assert!(!String::from_utf8_lossy(&out.stdout).contains(KEY));
+    }
+}
+#[test]
+fn deadline_retains_a_get_only_resume_and_bounded_poll_can_finish() {
+    let server = Server::new(vec![]);
+    let out =
+        command(&server.origin).args(["--deadline", "0", "asset", "upload", "--resume", "safe-id"]).output().unwrap();
+    assert_eq!(code(&out), 8);
+    assert_eq!(document(&out)["error"]["resume"], "updraft asset upload --resume safe-id");
+    assert!(server.requests().is_empty());
+    let server = Server::new(vec![
+        Response::json(json!({"done":false})),
+        Response::json(json!({"done":true,"response":{"assetId":"42"}})),
+    ]);
+    let out =
+        command(&server.origin).args(["--deadline", "1", "asset", "upload", "--resume", "safe-id"]).output().unwrap();
+    assert_eq!(code(&out), 0);
+    assert_eq!(server.requests().len(), 2);
+}
+#[test]
+fn publish_retries_conflicts_four_times_then_rejects() {
+    let server = Server::new((0..4).map(|_| Response::Body(409, "conflict".into())).collect());
+    let (_dir, file) = fixture();
+    let out = command(&server.origin)
+        .args(["place", "publish", file.to_str().unwrap(), "--universe", "1", "--place", "2"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 4);
+    assert_eq!(server.requests().len(), 4);
+    assert!(server.requests().iter().all(|c| c.body == b"fbx fixture"
+        && c.head.to_lowercase().contains("content-type: application/octet-stream")
+        && c.head.starts_with("POST /universes/v1/1/places/2/versions?versionType=Published ")));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("HTTP 409, retrying in 0 s (attempt 2 of 4)"));
+}
+#[test]
+fn publish_retains_uncertainty_until_a_later_success() {
+    let (_dir, file) = fixture();
+    for (replies, expected, count) in [
+        (vec![Response::Body(503, "unavailable".into()), Response::Body(400, "bad".into())], 5, 2),
+        (vec![Response::Body(503, "unavailable".into()), Response::json(json!({"versionNumber":7}))], 0, 2),
+        (vec![Response::Body(409, "conflict".into()), Response::Body(400, "bad".into())], 4, 2),
+        (vec![Response::Reset], 5, 1),
+        (vec![Response::Body(200, "not json".into())], 5, 1),
+        (vec![Response::json(json!({}))], 5, 1),
+        (vec![Response::Body(404, "missing".into())], 4, 1),
+    ] {
+        let server = Server::new(replies);
+        let out = command(&server.origin)
+            .args(["place", "publish", file.to_str().unwrap(), "--universe", "1", "--place", "2"])
+            .output()
+            .unwrap();
+        assert_eq!(code(&out), expected, "{}", document(&out));
+        assert_eq!(server.requests().len(), count);
+        if expected == 0 {
+            assert_eq!(
+                document(&out),
+                json!({"universeId":"1","placeId":"2","versionNumber":7,"versionType":"published"})
+            );
+        }
+    }
+}
+#[test]
+fn downloads_without_a_key_and_refuses_implicit_overwrite() {
+    let server = Server::new(vec![
+        Response::json(json!({"location":"$ORIGIN/content?signature=private"})),
+        Response::Body(200, "asset bytes".into()),
+    ]);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("file.rbxm");
+    let out =
+        command(&server.origin).args(["asset", "download", "42", "--out", path.to_str().unwrap()]).output().unwrap();
+    assert_eq!(code(&out), 0, "{}", document(&out));
+    assert_eq!(std::fs::read(&path).unwrap(), b"asset bytes");
+    assert_eq!(document(&out)["bytes"], 11);
+    let requests = server.requests();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[0].head.to_lowercase().contains("x-api-key:"));
+    assert!(!requests[1].head.to_lowercase().contains("x-api-key:"));
+    assert!(!String::from_utf8_lossy(&out.stdout).contains("signature=private"));
+    let out =
+        command(&server.origin).args(["asset", "download", "42", "--out", path.to_str().unwrap()]).output().unwrap();
+    assert_eq!(code(&out), 2);
+    assert_eq!(server.requests().len(), 2);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1, "no temporary files remain");
+}
+#[test]
+fn failed_download_preserves_target_and_successful_overwrite_replaces_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("file.rbxm");
+    std::fs::write(&path, "previous").unwrap();
+    let server = Server::new(vec![Response::json(json!({"location":"$ORIGIN/file"})), Response::Truncated(200)]);
+    let out = command(&server.origin)
+        .args(["asset", "download", "42", "--out", path.to_str().unwrap(), "--overwrite"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 7);
+    assert_eq!(std::fs::read(&path).unwrap(), b"previous");
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    let server = Server::new(vec![
+        Response::json(json!({"location":"$ORIGIN/file"})),
+        Response::Body(200, "replacement".into()),
+    ]);
+    let out = command(&server.origin)
+        .args(["asset", "download", "42", "--out", path.to_str().unwrap(), "--overwrite"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 0);
+    assert_eq!(std::fs::read(&path).unwrap(), b"replacement");
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+#[test]
+fn download_redirects_are_key_free_and_bounded() {
+    use httpmock::{Method::GET, MockServer};
+    let server = MockServer::start();
+    let delivery = server.mock(|w, t| {
+        w.method(GET).path("/asset-delivery-api/v1/assetId/42");
+        t.json_body(json!({"location":format!("{}/r0",server.base_url())}));
+    });
+    let mut redirects = vec![];
+    for n in 0..5 {
+        redirects.push(server.mock(|w, t| {
+            w.method(GET).path(format!("/r{n}")).header_missing("x-api-key");
+            t.status(302).header("location", format!("/r{}", n + 1));
+        }));
+    }
+    let file = server.mock(|w, t| {
+        w.method(GET).path("/r5").header_missing("x-api-key");
+        t.body("download");
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("file");
+    let out = command(&server.base_url())
+        .args(["asset", "download", "42", "--out", path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 0, "{}", document(&out));
+    delivery.assert_calls(1);
+    file.assert_calls(1);
+    for r in redirects {
+        r.assert_calls(1);
+    }
+    let server = MockServer::start();
+    server.mock(|w, t| {
+        w.path("/asset-delivery-api/v1/assetId/42");
+        t.json_body(json!({"location":format!("{}/loop",server.base_url())}));
+    });
+    let looping = server.mock(|w, t| {
+        w.path("/loop").header_missing("x-api-key");
+        t.status(302).header("location", "/loop");
+    });
+    let path = dir.path().join("loop");
+    let out = command(&server.base_url())
+        .args(["asset", "download", "42", "--out", path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 7);
+    looping.assert_calls(6);
+    assert!(!path.exists());
+}
+#[test]
+fn download_rejects_insecure_or_credentialed_destinations() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("file");
+    for location in [
+        "http://example.com/file?secret=hidden",
+        "https://user:password@example.com/file",
+        "file:///private",
+        "not a URL",
+    ] {
+        let server = Server::new(vec![Response::json(json!({"location":location}))]);
+        let out = command(&server.origin)
+            .args(["asset", "download", "42", "--out", path.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert_eq!(code(&out), 7);
+        assert_eq!(server.requests().len(), 1);
+        assert!(!path.exists());
+    }
+    use httpmock::MockServer;
+    let server = MockServer::start();
+    server.mock(|w, t| {
+        w.path("/asset-delivery-api/v1/assetId/42");
+        t.json_body(json!({"location":format!("{}/redirect",server.base_url())}));
+    });
+    server.mock(|w, t| {
+        w.path("/redirect");
+        t.status(302).header("location", "http://example.com/file?signature=hidden");
+    });
+    let out = command(&server.base_url())
+        .args(["asset", "download", "42", "--out", path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 7);
+    assert!(!path.exists());
+    assert!(!String::from_utf8_lossy(&out.stdout).contains("signature=hidden"));
+}
+#[test]
+fn luau_reads_all_log_pages_for_success_failure_and_cancellation() {
+    for state in ["COMPLETE", "FAILED", "CANCELLED"] {
+        let path = "universes/1/places/2/versions/3/luau-execution-sessions/s/tasks/t";
+        let server = Server::new(vec![
+            Response::json(json!({"path":path,"state":"QUEUED"})),
+            Response::json(json!({"state":state,"output":{"results":[42]},"error":{"message":"Script error: boom"}})),
+            Response::json(json!({"luauExecutionSessionTaskLogs":[{"messages":["one"]}],"nextPageToken":"two"})),
+            Response::json(json!({"luauExecutionSessionTaskLogs":[{"messages":["two"]}]})),
+        ]);
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("script.luau");
+        std::fs::write(&file, "return 42").unwrap();
+        let out = command(&server.origin)
+            .args(["luau", "run", file.to_str().unwrap(), "--universe", "1", "--place", "2"])
+            .output()
+            .unwrap();
+        let d = document(&out);
+        assert_eq!(code(&out), if state == "COMPLETE" { 0 } else { 6 }, "{d}");
+        let detail = if state == "COMPLETE" { &d } else { &d["error"]["detail"] };
+        assert_eq!(detail["logs"], json!(["one", "two"]));
+        assert_eq!(detail["task"], path);
+        assert_eq!(detail["state"], state);
+        assert_eq!(detail["results"], json!([42]));
+        let requests = server.requests();
+        assert_eq!(requests.len(), 4);
+        assert!(requests[3].head.contains("pageToken=two"));
+        assert!(requests[1..].iter().all(|c| c.head.starts_with("GET ")));
+    }
+}
+#[test]
+fn luau_unmatched_path_exits_7_and_retains_the_path() {
+    let path = "universes/1/places/2/tasks/unmatched";
+    let server = Server::new(vec![Response::json(json!({"path":path,"state":"QUEUED"}))]);
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("script.luau");
+    std::fs::write(&file, "return 42").unwrap();
+    let out = command(&server.origin)
+        .args(["luau", "run", file.to_str().unwrap(), "--universe", "1", "--place", "2"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 7);
+    assert_eq!(document(&out)["error"]["path"], path);
+    assert_eq!(server.requests().len(), 1);
+}
+#[test]
+fn luau_reads_stdin_and_preserves_script_failure_if_logs_fail() {
+    use std::io::Write;
+    let path = "universes/1/places/2/versions/3/luau-execution-sessions/s/tasks/t";
+    for state in ["FAILED", "COMPLETE"] {
+        let server = Server::new(vec![
+            Response::json(json!({"path":path,"state":state})),
+            Response::Body(404, "logs missing".into()),
+        ]);
+        let mut child = command(&server.origin)
+            .args(["luau", "run", "-", "--universe", "1", "--place", "2"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(b"print('stdin')").unwrap();
+        let out = child.wait_with_output().unwrap();
+        assert_eq!(code(&out), if state == "FAILED" { 6 } else { 7 });
+        assert_eq!(document(&out)["error"]["detail"]["logsComplete"], false);
+        assert!(String::from_utf8_lossy(&server.requests()[0].body).contains("print('stdin')"));
+    }
+}
+#[test]
+fn accepted_upload_deadline_includes_an_inflight_poll() {
+    use httpmock::MockServer;
+    let server = MockServer::start();
+    let poll = server.mock(|w, t| {
+        w.path("/assets/v1/operations/slow");
+        t.delay(std::time::Duration::from_millis(100)).json_body(json!({"done":false}));
+    });
+    let out = command(&server.base_url())
+        .args(["--deadline", "0.01", "asset", "upload", "--resume", "slow"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 8, "a pending operation retains its deadline even while a lookup runs");
+    assert_eq!(document(&out)["error"]["resume"], "updraft asset upload --resume slow");
+    poll.assert_calls(1);
+}
+#[test]
+fn lost_download_body_retries_from_an_empty_temporary_file() {
+    let server = Server::new(vec![
+        Response::json(json!({"location":"$ORIGIN/file"})),
+        Response::Truncated(200),
+        Response::Body(200, "complete bytes".into()),
+    ]);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("file");
+    let out =
+        command(&server.origin).args(["asset", "download", "42", "--out", path.to_str().unwrap()]).output().unwrap();
+    assert_eq!(code(&out), 0, "{}", document(&out));
+    assert_eq!(std::fs::read(&path).unwrap(), b"complete bytes");
+    assert_eq!(server.requests().len(), 3);
+    assert!(server.requests()[1..].iter().all(|r| !r.head.to_lowercase().contains("x-api-key:")));
+}
