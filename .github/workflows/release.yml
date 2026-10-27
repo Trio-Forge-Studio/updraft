@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: windows-x86_64, exe: updraft.exe }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, asset: linux-x86_64, exe: updraft }
+          - { os: macos-latest, target: aarch64-apple-darwin, asset: macos-aarch64, exe: updraft }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.99.0
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: Swatinem/rust-cache@v2
+      - name: Tag matches Cargo version
+        shell: python
+        run: |
+          import os
+          import tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path("Cargo.toml").read_text())["workspace"]["package"]["version"]
+          assert os.environ["GITHUB_REF_NAME"] == f"v{version}", "tag must equal v<Cargo version>"
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo xtask spec check
+      - run: cargo test --workspace --locked
+      - run: cargo build --release --locked --package updraft --target ${{ matrix.target }}
+      - name: Zip for rokit
+        shell: python
+        env:
+          UPDRAFT_TARGET: ${{ matrix.target }}
+          UPDRAFT_ASSET: ${{ matrix.asset }}
+          UPDRAFT_EXE: ${{ matrix.exe }}
+        run: |
+          import os
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          version = os.environ["GITHUB_REF_NAME"][1:]
+          binary = os.environ["UPDRAFT_EXE"]
+          source = Path("target") / os.environ["UPDRAFT_TARGET"] / "release" / binary
+          name = f"updraft-{version}-{os.environ['UPDRAFT_ASSET']}.zip"
+          with ZipFile(name, "w", compression=ZIP_DEFLATED) as archive:
+              archive.write(source, arcname=binary)
+          with ZipFile(name) as archive:
+              assert archive.namelist() == [binary], "the binary must be at the archive root"
+              assert archive.read(binary) == source.read_bytes(), "the archive must contain the built binary"
+              if os.name != "nt":
+                  assert archive.getinfo(binary).external_attr >> 16 & 0o111, "Unix binary must remain executable"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: updraft-*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes dist/updraft-*.zip

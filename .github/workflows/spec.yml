@@ -1,0 +1,54 @@
+name: Spec update
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - uses: Swatinem/rust-cache@v2
+      - run: mkdir -p build
+      - run: cargo xtask spec update > build/spec-update.json
+      - run: cargo xtask spec check
+      - run: cargo test --workspace --locked
+      - name: Write the operation diff
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          update = json.loads(Path("build/spec-update.json").read_text())
+          registry = json.loads(Path("spec/registry.json").read_text())
+          commit = registry["source"]["commit"]
+          lines = [f"Updates the Roblox Open Cloud spec to [{commit}](https://github.com/Roblox/creator-docs/commit/{commit}).", ""]
+          for title, field in [("Added", "added"), ("Removed", "removed"), ("Changed", "changed")]:
+              lines.extend([f"## {title}", ""])
+              entries = update["diff"][field]
+              if not entries:
+                  lines.append("None.")
+              for entry in entries:
+                  if isinstance(entry, str):
+                      lines.append(f"- `{entry}`")
+                  else:
+                      fields = ", ".join(entry["fields"])
+                      lines.append(f"- `{entry['name']}`. Changed {fields}.")
+              lines.append("")
+          Path("build/spec-update.md").write_text("\n".join(lines))
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/roblox-openapi
+          base: main
+          title: "chore(spec): update Roblox Open Cloud"
+          commit-message: "chore(spec): update Roblox Open Cloud"
+          body-path: build/spec-update.md
+          add-paths: |
+            spec/openapi.json
+            spec/registry.json
