@@ -1,0 +1,88 @@
+# Corrections to Roblox's OpenAPI document. `cargo xtask spec build` applies them and
+# fails when a key stops matching an operation. Every patch needs a note, which
+# `updraft describe` prints.
+
+[[patch]]
+key = "POST /universes/v1/{universeId}/places/{placeId}/versions"
+expect = { body = "absent", response = { type = "text" }, retry = "absent" }
+note = "The spec declares no request body. The endpoint takes the place file as application/octet-stream and answers with JSON despite declaring text/plain."
+body = { required = true, media = { type = "binary", content_type = "application/octet-stream" } }
+response = { type = "json", shape = { type = "object", fields = [{ name = "versionNumber", shape = { type = "integer" } }] } }
+retry = { statuses = [409, "5xx"], attempts = 4, delay_seconds = 60 }
+
+[[patch]]
+key = "GET /asset-delivery-api/v1/assetId/{assetId}"
+expect = { response = { type = "empty" } }
+note = "The spec declares no response body. The endpoint returns JSON whose location is an unauthenticated download URL."
+response = { type = "json", shape = { type = "object", fields = [{ name = "location", shape = { type = "string" } }] } }
+
+[[patch]]
+key = "GET /asset-delivery-api/v1/assetId/{assetId}/version/{versionNumber}"
+expect = { response = { type = "empty" } }
+note = "The spec declares no response body. The endpoint returns JSON whose location is an unauthenticated download URL."
+response = { type = "json", shape = { type = "object", fields = [{ name = "location", shape = { type = "string" } }] } }
+
+[[patch]]
+key = "GET /assets/v1/assets/{assetId}/versions"
+expect = { response = { type = "json", shape = { type = "array", items = { type = "ref", name = "AssetVersion" } } }, pagination = "absent" }
+note = "The spec declares a bare array. The endpoint returns assetVersions with a nextPageToken."
+response = { type = "json", shape = { type = "object", fields = [{ name = "assetVersions", shape = { type = "array", items = { type = "ref", name = "AssetVersion" } } }, { name = "nextPageToken", shape = { type = "string" } }] } }
+pagination = { token_param = "pageToken", size_param = "maxPageSize", next_field = "nextPageToken", items_field = "assetVersions" }
+
+[[patch]]
+key = "POST /cloud/v2/universes/{universe_id}/places/{place_id}/luau-execution-session-tasks"
+expect = { completion = "absent" }
+note = "The task finishes through its state field. updraft polls the task path it returns."
+completion = { type = "state", field = "state", success = ["COMPLETE"], failure = ["FAILED", "CANCELLED"] }
+
+[[patch]]
+key = "POST /cloud/v2/universes/{universe_id}/places/{place_id}/versions/{version_id}/luau-execution-session-tasks"
+expect = { completion = "absent" }
+note = "The task finishes through its state field. updraft polls the task path it returns."
+completion = { type = "state", field = "state", success = ["COMPLETE"], failure = ["FAILED", "CANCELLED"] }
+
+[[patch]]
+key = "POST /toolbox-service/v2/assets:search"
+expect = { safety = "unsafe" }
+note = "A search sent as POST. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /analytics-query-api/v1/universes/{universeId}/metrics"
+expect = { safety = "unsafe" }
+note = "A query sent as POST. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /analytics-query-api/v1/universes/{universeId}/dimension-values"
+expect = { safety = "unsafe" }
+note = "A query sent as POST. Safe to repeat."
+safety = "read"
+
+[[add]]
+name = "api-keys.introspect"
+key = "POST /api-keys/v1/introspect"
+method = "POST"
+server = "apis"
+path = "/api-keys/v1/introspect"
+summary = "Describe an API key: its scopes, owner, and whether it is enabled or expired."
+auth = "none"
+stability = "unspecified"
+safety = "read"
+response = { type = "json", shape = { type = "any" } }
+body = { required = true, media = { type = "json", content_type = "application/json", shape = { type = "object", fields = [{ name = "apiKey", required = true, shape = { type = "string" } }] } } }
+patches = ["Missing from the spec. Documented at https://create.roblox.com/docs/cloud/auth/api-keys."]
+
+[[add]]
+name = "universes.get-place-universe"
+key = "GET /universes/v1/places/{placeId}/universe"
+method = "GET"
+server = "apis"
+path = "/universes/v1/places/{placeId}/universe"
+summary = "Get the universe that owns a place."
+auth = "none"
+stability = "unspecified"
+safety = "read"
+params = [{ name = "placeId", in = "path", required = true, kind = { type = "integer" } }]
+response = { type = "json", shape = { type = "object", fields = [{ name = "universeId", shape = { type = "integer" } }] } }
+patches = ["Missing from the spec. A public endpoint that needs no key."]
