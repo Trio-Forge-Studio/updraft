@@ -11,6 +11,7 @@ use ureq::RequestExt;
 pub struct Executor<'a> {
     pub registry: &'static Registry,
     agent: ureq::Agent,
+    download_agent: ureq::Agent,
     origin: Option<String>,
     key: Option<&'a Secret>,
     pub timing: Timing,
@@ -23,6 +24,8 @@ pub struct Timing {
     pub retry_delay: Option<Duration>,
 }
 pub enum Reply {
+    Saved(u64),
+    Redirect(String),
     Json(Value),
     Text(String),
     Bytes(Vec<u8>),
@@ -31,6 +34,7 @@ pub enum Reply {
 impl Reply {
     pub fn json(self) -> Result<Value, Failure> {
         match self {
+            Self::Saved(_) | Self::Redirect(_) => Err(Failure::unavailable("unexpected download response")),
             Self::Json(v) => Ok(v),
             Self::Empty => Ok(Value::Null),
             _ => Err(Failure::unavailable("expected a JSON response")),
@@ -38,6 +42,7 @@ impl Reply {
     }
     pub fn document(self, out: Option<&std::path::Path>) -> Result<Value, Failure> {
         match self {
+            Self::Saved(_) | Self::Redirect(_) => Err(Failure::unavailable("unexpected download response")),
             Self::Json(v) => Ok(v),
             Self::Empty => Ok(Value::Null),
             Self::Text(s) => Ok(json!({"text":s})),
@@ -78,7 +83,14 @@ impl<'a> Executor<'a> {
             .timeout_global(Some(Duration::from_secs(120)))
             .build()
             .into();
-        Ok(Self { registry, agent, origin, key, timing, out })
+        let download_agent = ureq::Agent::config_builder()
+            .max_redirects(0)
+            .max_redirects_will_error(false)
+            .http_status_as_error(false)
+            .timeout_global(Some(Duration::from_secs(120)))
+            .build()
+            .into();
+        Ok(Self { registry, agent, download_agent, origin, key, timing, out })
     }
     pub fn send(&self, call: &Call<'_>) -> Result<Reply, Failure> {
         let op = call.op();
@@ -88,7 +100,8 @@ impl<'a> Executor<'a> {
                 return Err(Failure::unavailable("request deadline passed"));
             }
             let mut request = call.request(self.origin.as_deref().unwrap_or(op.server.origin()))?;
-            if matches!(op.auth, Auth::ApiKey { .. }) {
+            let download = call.download_url().is_some();
+            if !download && matches!(op.auth, Auth::ApiKey { .. }) {
                 let key = self.key.ok_or_else(|| Failure::new(3, "auth", "no API key selected"))?;
                 request.headers_mut().insert(
                     "x-api-key",
@@ -99,7 +112,9 @@ impl<'a> Executor<'a> {
             self.out.trace(&format!("{} {}", request.method(), op.path));
             let timeout =
                 call.timeout().unwrap_or_else(|| Duration::from_secs(if op.method == Method::Get { 30 } else { 120 }));
-            let attempt = match request.with_agent(&self.agent).configure().timeout_global(Some(timeout)).run() {
+            let mut saved = None;
+            let client = if download { &self.download_agent } else { &self.agent };
+            let attempt = match request.with_agent(client).configure().timeout_global(Some(timeout)).run() {
                 Ok(mut response) => {
                     let status = response.status().as_u16();
                     self.out.trace(&format!("HTTP {status}"));
@@ -108,22 +123,52 @@ impl<'a> Executor<'a> {
                         .get("retry-after")
                         .and_then(|s| s.to_str().ok())
                         .and_then(|s| s.parse().ok());
-                    match response.body_mut().with_config().limit(64 * 1024 * 1024).read_to_vec() {
-                        Ok(body) => {
-                            if (200..300).contains(&status)
-                                && matches!(op.response, Payload::Json { .. })
-                                && status != 204
-                                && serde_json::from_slice::<Value>(&body).is_err()
-                            {
-                                Attempt::Transport {
-                                    sent: true,
-                                    message: format!("invalid JSON: {}", String::from_utf8_lossy(&body)),
-                                }
-                            } else {
-                                Attempt::Response { status, retry_after, body }
+                    if download && (200..300).contains(&status) {
+                        let mut destination = call.destination().expect("download binding has a destination");
+                        use std::io::Seek;
+                        destination
+                            .set_len(0)
+                            .and_then(|()| destination.rewind())
+                            .map_err(|_| Failure::unavailable("cannot reset the temporary download file"))?;
+                        match std::io::copy(&mut response.body_mut().as_reader(), &mut destination) {
+                            Ok(bytes) => {
+                                saved = Some(bytes);
+                                Attempt::Response { status, retry_after, body: vec![] }
                             }
+                            Err(_) => Attempt::Transport {
+                                sent: true,
+                                message: "download body was lost; the output was not replaced".into(),
+                            },
                         }
-                        Err(error) => Attempt::Transport { sent: true, message: error.to_string() },
+                    } else if download && matches!(status, 301 | 302 | 303 | 307 | 308) {
+                        let location = response
+                            .headers()
+                            .get("location")
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or_default()
+                            .to_owned();
+                        Attempt::Redirect(location)
+                    } else {
+                        match response.body_mut().with_config().limit(64 * 1024 * 1024).read_to_vec() {
+                            Ok(body) => {
+                                if (200..300).contains(&status)
+                                    && matches!(op.response, Payload::Json { .. })
+                                    && status != 204
+                                    && serde_json::from_slice::<Value>(&body).is_err()
+                                {
+                                    Attempt::Transport {
+                                        sent: true,
+                                        message: format!("invalid JSON: {}", String::from_utf8_lossy(&body)),
+                                    }
+                                } else {
+                                    Attempt::Response { status, retry_after, body }
+                                }
+                            }
+                            Err(error) if !(200..300).contains(&status) => {
+                                Attempt::Response { status, retry_after, body: error.to_string().into_bytes() }
+                            }
+                            Err(error) => Attempt::Transport { sent: true, message: error.to_string() },
+                        }
                     }
                 }
                 Err(error) => {
@@ -139,9 +184,14 @@ impl<'a> Executor<'a> {
             let reason = match &attempt {
                 Attempt::Response { status, .. } => format!("HTTP {status}"),
                 Attempt::Transport { .. } => "request failed".into(),
+                Attempt::Redirect(_) => "redirect".into(),
             };
             match judge(op, attempt, history) {
+                Verdict::Redirect(location) => return Ok(Reply::Redirect(location)),
                 Verdict::Success(body) => {
+                    if let Some(bytes) = saved {
+                        return Ok(Reply::Saved(bytes));
+                    }
                     return match &op.response {
                         Payload::Json { .. } if !body.is_empty() => serde_json::from_slice(&body)
                             .map(Reply::Json)
@@ -220,7 +270,14 @@ impl<'a> Executor<'a> {
         let until = Instant::now() + self.timing.deadline;
         let mut value = first;
         let mut path = value["path"].as_str().map(str::to_owned);
+        let mut polled = false;
         loop {
+            if value.is_object()
+                && value["path"].is_null()
+                && let Some(path) = &path
+            {
+                value["path"] = json!(path);
+            }
             match completion {
                 Completion::Operation => {
                     if !value["error"].is_null() {
@@ -262,7 +319,10 @@ impl<'a> Executor<'a> {
             if Instant::now() >= until {
                 return Err(pending(value));
             }
-            std::thread::sleep(self.timing.poll_interval.min(until.saturating_duration_since(Instant::now())));
+            if polled {
+                std::thread::sleep(self.timing.poll_interval.min(until.saturating_duration_since(Instant::now())));
+            }
+            polled = true;
             if Instant::now() >= until {
                 continue;
             }
@@ -280,4 +340,67 @@ pub fn decode_captures(pairs: Vec<(String, String)>) -> Vec<(String, String)> {
         .into_iter()
         .map(|(k, v)| (k, percent_encoding::percent_decode_str(&v).decode_utf8_lossy().into_owned()))
         .collect()
+}
+impl Executor<'_> {
+    pub fn note(&self, message: &str) {
+        self.out.note(message);
+    }
+    pub fn download(
+        &self,
+        from: &Call<'_>,
+        location: &str,
+        to: &std::path::Path,
+        overwrite: bool,
+    ) -> Result<u64, Failure> {
+        let mut url = url::Url::parse(location).map_err(|_| Failure::unavailable("delivery location is not a URL"))?;
+        let parent = to.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| std::path::Path::new("."));
+        if to.exists() && !overwrite {
+            return Err(Failure::usage("output already exists; use --overwrite"));
+        }
+        let temporary = tempfile::NamedTempFile::new_in(parent)
+            .map_err(|_| Failure::usage("cannot create a temporary output file"))?;
+        for redirects in 0..=5 {
+            let test_http = self.origin.is_some()
+                && url.scheme() == "http"
+                && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
+            if (url.scheme() != "https" && !test_http) || !url.username().is_empty() || url.password().is_some() {
+                return Err(Failure::unavailable("download requires HTTPS without URL credentials"));
+            }
+            url.set_fragment(None);
+            let call = Call::new(
+                from.op(),
+                crate::call::Preset::Download {
+                    url: url.clone(),
+                    parameters: from.parameters(),
+                    destination: temporary
+                        .as_file()
+                        .try_clone()
+                        .map_err(|_| Failure::usage("cannot access the temporary download file"))?,
+                },
+                vec![],
+                None,
+            )?;
+            match self.send(&call)? {
+                Reply::Redirect(location) => {
+                    if redirects == 5 {
+                        return Err(Failure::unavailable("download exceeded five redirects"));
+                    }
+                    if location.is_empty() {
+                        return Err(Failure::unavailable("download redirect has no location"));
+                    }
+                    url = url
+                        .join(&location)
+                        .map_err(|_| Failure::unavailable("download redirect has an invalid URL"))?;
+                }
+                Reply::Saved(bytes) => {
+                    temporary.as_file().sync_all().map_err(|_| Failure::usage("cannot flush the output file"))?;
+                    let result = if overwrite { temporary.persist(to) } else { temporary.persist_noclobber(to) };
+                    result.map_err(|_| Failure::usage("cannot rename the temporary output file"))?;
+                    return Ok(bytes);
+                }
+                _ => return Err(Failure::unavailable("download returned an unexpected response")),
+            }
+        }
+        unreachable!("the redirect limit returns within the loop")
+    }
 }

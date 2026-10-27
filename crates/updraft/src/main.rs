@@ -3,11 +3,12 @@ mod call;
 mod cli;
 mod discover;
 mod exec;
+mod flows;
 mod outcome;
 mod output;
 
 use crate::call::{BodyInput, Call, Source};
-use crate::cli::{AuthCommand, Cli, Command};
+use crate::cli::{AssetCommand, AuthCommand, Cli, Command, LuauCommand, PlaceCommand};
 use crate::exec::{Executor, Timing};
 use crate::outcome::Failure;
 use crate::output::Output;
@@ -71,7 +72,13 @@ fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
     } else if let Command::Auth(AuthCommand::Check { for_operation: Some(name) }) = &cli.command {
         op_ref(registry, std::slice::from_ref(name))?.0.op
     } else {
-        registry.op("assets.get-asset").expect("asset read is registered")
+        match &cli.command {
+            Command::Asset(AssetCommand::Upload(args)) => flows::upload::primary(registry, args),
+            Command::Asset(AssetCommand::Download(args)) => flows::download::primary(registry, args),
+            Command::Place(PlaceCommand::Publish(_)) => flows::op(registry, flows::PUBLISH),
+            Command::Luau(LuauCommand::Run(args)) => flows::luau::primary(registry, args),
+            _ => registry.op("assets.get-asset").expect("asset read is registered"),
+        }
     };
     let force_key = matches!(cli.command, Command::Auth(AuthCommand::Check { .. }));
     let source = if force_key || matches!(primary.auth, Auth::ApiKey { .. }) {
@@ -107,7 +114,15 @@ fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
         },
         output,
     )?;
+    let profile = source.as_ref().and_then(|source| match source {
+        auth::KeySource::Profile(name) => config.profiles.get(name),
+        _ => None,
+    });
     let result = (|| match cli.command {
+        Command::Asset(AssetCommand::Upload(args)) => flows::upload::run(&executor, args, profile),
+        Command::Asset(AssetCommand::Download(args)) => flows::download::run(&executor, args),
+        Command::Place(PlaceCommand::Publish(args)) => flows::publish::run(&executor, args),
+        Command::Luau(LuauCommand::Run(args)) => flows::luau::run(&executor, args),
         Command::Call(args) => {
             let call = prepared.expect("call arguments were validated");
             if args.all {

@@ -36,6 +36,12 @@ pub enum Command {
     },
     Call(CallArgs),
     #[command(subcommand)]
+    Asset(AssetCommand),
+    #[command(subcommand)]
+    Place(PlaceCommand),
+    #[command(subcommand)]
+    Luau(LuauCommand),
+    #[command(subcommand)]
     Auth(AuthCommand),
 }
 #[derive(Args)]
@@ -62,4 +68,18 @@ pub enum AuthCommand {
         for_operation: Option<String>,
     },
     Profiles,
+}
+
+#[derive(Subcommand)]
+pub enum AssetCommand {
+    Upload(crate::flows::upload::Args),
+    Download(crate::flows::download::Args),
+}
+#[derive(Subcommand)]
+pub enum PlaceCommand {
+    Publish(crate::flows::publish::Args),
+}
+#[derive(Subcommand)]
+pub enum LuauCommand {
+    Run(crate::flows::luau::Args),
 }

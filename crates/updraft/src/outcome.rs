@@ -33,6 +33,7 @@ impl Failure {
 }
 
 pub enum Attempt {
+    Redirect(String),
     Response { status: u16, retry_after: Option<u32>, body: Vec<u8> },
     Transport { sent: bool, message: String },
 }
@@ -42,6 +43,7 @@ pub struct History {
     pub uncertain: bool,
 }
 pub enum Verdict {
+    Redirect(String),
     Success(Vec<u8>),
     Retry { after_seconds: u32, history: History },
     Fail(Failure),
@@ -50,6 +52,7 @@ pub enum Verdict {
 pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
     let unsafe_write = op.safety == Safety::Unsafe;
     let (failure, retryable, uncertain, retry_after) = match attempt {
+        Attempt::Redirect(location) => return Verdict::Redirect(location),
         Attempt::Response { status, retry_after, body } => {
             if (200..300).contains(&status) {
                 return Verdict::Success(body);
