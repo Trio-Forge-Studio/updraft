@@ -104,17 +104,7 @@ fn spec_digest(bytes: &[u8]) -> String {
 
 fn update(spec_path: &Path, registry_path: &Path, overlay_path: &Path) -> Result<(), String> {
     let url = format!("https://api.github.com/repos/{SPEC_REPOSITORY}/commits?path={SPEC_PATH}&per_page=1");
-    let commits: Value = ureq::get(&url)
-        .header("User-Agent", "updraft-spec")
-        .call()
-        .map_err(|e| format!("fetch commits: {e}"))?
-        .body_mut()
-        .read_json()
-        .map_err(|e| format!("read commits: {e}"))?;
-    let commit = commits[0]["sha"]
-        .as_str()
-        .filter(|sha| sha.len() == 40 && sha.bytes().all(|b| b.is_ascii_hexdigit()))
-        .ok_or("GitHub returned no commit SHA")?;
+    let commit = latest_commit(&url, std::env::var("GITHUB_TOKEN").ok().as_deref())?;
     let bytes = ureq::get(&format!("https://raw.githubusercontent.com/{SPEC_REPOSITORY}/{commit}/{SPEC_PATH}"))
         .call()
         .map_err(|e| format!("fetch spec: {e}"))?
@@ -128,4 +118,22 @@ fn update(spec_path: &Path, registry_path: &Path, overlay_path: &Path) -> Result
     fs::write(&temporary, &bytes).map_err(|e| format!("write spec: {e}"))?;
     fs::rename(&temporary, spec_path).map_err(|e| format!("replace spec: {e}"))?;
     rebuild(spec_path, registry_path, overlay_path, Some(commit.to_owned()), Mode::Write)
+}
+
+fn latest_commit(url: &str, token: Option<&str>) -> Result<String, String> {
+    let mut request = ureq::get(url).header("User-Agent", "updraft-spec");
+    if let Some(token) = token.filter(|token| !token.is_empty()) {
+        request = request.header("Authorization", format!("Bearer {token}"));
+    }
+    let commits: Value = request
+        .call()
+        .map_err(|e| format!("fetch commits: {e}"))?
+        .body_mut()
+        .read_json()
+        .map_err(|e| format!("read commits: {e}"))?;
+    commits[0]["sha"]
+        .as_str()
+        .filter(|sha| sha.len() == 40 && sha.bytes().all(|b| b.is_ascii_hexdigit()))
+        .ok_or_else(|| "GitHub returned no commit SHA".into())
+        .map(str::to_owned)
 }

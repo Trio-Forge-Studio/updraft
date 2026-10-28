@@ -728,3 +728,67 @@ fn spec_hash_ignores_checkout_line_endings() {
     assert_eq!(spec_digest(lf.as_bytes()), registry.source.sha256);
     assert_eq!(spec_digest(crlf.as_bytes()), registry.source.sha256);
 }
+
+#[test]
+fn commits_lookup_authenticates_with_the_supplied_github_token() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/commits", listener.local_addr().unwrap());
+    let thread = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+        let mut request = vec![];
+        let mut buffer = [0; 1024];
+        while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+            let n = socket.read(&mut buffer).unwrap();
+            assert!(n > 0, "the commits request includes complete headers");
+            request.extend_from_slice(&buffer[..n]);
+        }
+        let body = r#"[{"sha":"0123456789012345678901234567890123456789"}]"#;
+        write!(socket, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+        String::from_utf8(request).unwrap()
+    });
+    let sha = latest_commit(&url, Some("github-test-token")).unwrap();
+    let request = thread.join().unwrap().to_ascii_lowercase();
+    assert_eq!(sha, "0123456789012345678901234567890123456789");
+    assert!(
+        request.contains("authorization: bearer github-test-token"),
+        "the commits API uses the supplied read-only token"
+    );
+}
+
+#[test]
+fn spec_pull_request_requires_both_uploaded_artifacts() {
+    let workflow = include_str!("../../.github/workflows/spec.yml").replace("\r\n", "\n");
+    let (verify, pull_request) = workflow.split_once("  pull-request:\n").unwrap();
+    for runner in ["ubuntu", "windows"] {
+        let output = format!(
+            "{runner}-artifact: ${{{{ matrix.os == '{runner}-latest' && steps.artifact.outputs.artifact-id || '' }}}}"
+        );
+        assert!(verify.contains(&output), "{runner} exposes only a successful upload's artifact ID");
+        let required = format!("needs.verify.outputs.{runner}-artifact != ''");
+        let condition = pull_request.lines().find(|line| line.trim_start().starts_with("if:")).unwrap();
+        assert!(condition.contains(&required), "the PR job cannot run without the {runner} artifact");
+        assert!(condition.contains("!cancelled()"), "cancellation never opens a PR");
+    }
+    assert!(
+        verify.contains("id: artifact\n        uses: actions/upload-artifact@"),
+        "the output belongs to the upload step"
+    );
+    assert!(verify.contains("continue-on-error: true"), "verification failures still reach the artifact upload");
+}
+
+#[test]
+fn spec_action_pins_have_readable_upstream_refs() {
+    let workflow = include_str!("../../.github/workflows/spec.yml").replace("\r\n", "\n");
+    for line in workflow.lines().filter(|line| line.contains("uses:")) {
+        let (action, tag) = line.split_once(" # ").expect("each action pin has a readable upstream ref");
+        let (_, sha) = action.split_once('@').unwrap();
+        assert!(sha.len() == 40 && sha.bytes().all(|byte| byte.is_ascii_hexdigit()), "actions stay SHA-pinned");
+        if action.contains("dtolnay/rust-toolchain@") {
+            assert_eq!(tag, "master", "rust-toolchain has no semver release for this pin");
+        } else {
+            assert!(tag.starts_with('v') && tag.split('.').count() == 3, "released actions name their full version");
+        }
+    }
+}
