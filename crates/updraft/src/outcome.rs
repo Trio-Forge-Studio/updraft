@@ -37,7 +37,7 @@ impl Failure {
 pub enum Attempt {
     PageOverflow { can_resize: bool },
     Redirect(String),
-    Response { status: u16, retry_after: Option<u32>, body: Vec<u8> },
+    Response { status: u16, retry_after: Option<u64>, body: Vec<u8> },
     Transport { sent: bool, message: String },
 }
 #[derive(Clone, Copy, Default)]
@@ -64,7 +64,7 @@ pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
             if can_resize && history.attempts == 0 {
                 return Verdict::Retry { after_seconds: 0, history: History { attempts: 1, uncertain: false } };
             }
-            return Verdict::Fail(Failure::unavailable(
+            return Verdict::Fail(Failure::usage(
                 "the page cannot fit the requested item limit; use a smaller page size or omit --max-items",
             ));
         }
@@ -96,18 +96,22 @@ pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
         }
     };
     let uncertain = history.uncertain || uncertain;
+    let capped = retry_after.is_some_and(|wait| wait > 300);
+    let failure = if capped { failure.with("retryAfter", json!(retry_after)) } else { failure };
     let attempts = op.retry.as_ref().map_or(DEFAULT_ATTEMPTS, |policy| policy.attempts);
-    if retryable && history.attempts + 1 < attempts {
+    if retryable && !capped && history.attempts + 1 < attempts {
         let delay = op.retry.as_ref().map_or(if history.attempts == 0 { 1 } else { 4 }, |policy| policy.delay_seconds);
         return Verdict::Retry {
-            after_seconds: retry_after.unwrap_or(delay),
+            after_seconds: retry_after.map_or(delay, |wait| wait as u32),
             history: History { attempts: history.attempts + 1, uncertain },
         };
     }
     if uncertain && failure.code != 5 {
-        Verdict::Fail(Failure::unknown(
-            failure.error["message"].as_str().unwrap_or("a previous attempt may have acted"),
-        ))
+        let mut failure = failure;
+        failure.code = 5;
+        failure.error["kind"] = json!("outcome_unknown");
+        failure.error["hint"] = json!("Check the remote resource before repeating this request.");
+        Verdict::Fail(failure)
     } else {
         Verdict::Fail(failure)
     }
@@ -151,7 +155,7 @@ mod tests {
             Verdict::Retry { after_seconds: 0, .. }
         ));
         assert_eq!(code(judge(&op(Safety::Unsafe), Attempt::PageOverflow { can_resize: true }, History::default())), 5);
-        assert_eq!(code(judge(&op(Safety::Read), Attempt::PageOverflow { can_resize: false }, History::default())), 7);
+        assert_eq!(code(judge(&op(Safety::Read), Attempt::PageOverflow { can_resize: false }, History::default())), 2);
     }
     #[test]
     fn auth_row() {

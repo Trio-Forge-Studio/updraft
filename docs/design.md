@@ -21,6 +21,8 @@ Install with rokit (`updraft = "Trio-Forge-Studio/updraft@0.1.0"`). Every comman
 | 7 | `unavailable` | not processed: 429, a request that never left, or retries ran out on a read | yes |
 | 8 | `pending` | accepted and still running at the deadline. `error.resume` is the command to continue. | run `resume` |
 
+A `Retry-After` above 300 seconds stops retries and reports the requested value in `error.retryAfter` with the applicable exit code.
+
 updraft never sends an `unsafe` request twice on its own, even after a 429 or a refused connection. Exit 7 tells the caller that repeating is safe, and the caller decides. The one exception is an operation whose overlay entry has a retry policy, which today is only place publishing. If any of its attempts got a 5xx or lost its response and no later attempt succeeded, it exits 5, not 7 or 4.
 
 ### Past one-off calls
@@ -80,7 +82,7 @@ $ updraft describe universes.create-place-version
 exit 0
 ```
 
-A paged list follows every page with `--all` and prints one page-shaped document. A long-running operation waits by default. `--no-wait` prints the first reply.
+A paged list follows pages with `--all` and prints one page-shaped document. `--max-pages` defaults to 100. Reaching either the page cap or `--max-items` preserves the continuation token. An overfull page that cannot be resized exits 2. A long-running operation waits by default. `--no-wait` prints the first reply.
 
 ```console
 $ updraft call data-stores.list-entries universe_id=13058 data_store_id=Profiles --all --max-items 500

@@ -514,3 +514,16 @@ fn luau_create_without_a_task_path_is_unknown_and_not_repeated() {
     assert_eq!(document(&out)["error"]["kind"], "outcome_unknown");
     assert_eq!(server.requests().len(), 1);
 }
+
+#[test]
+fn pagination_defaults_to_one_hundred_pages() {
+    let server = Server::new(
+        (0..101).map(|n| Response::json(json!({"assetVersions":[n],"nextPageToken":format!("page-{}",n+1)}))).collect(),
+    );
+    let out =
+        command(&server.origin).args(["call", "assets.list-asset-versions", "assetId=42", "--all"]).output().unwrap();
+    assert_eq!(code(&out), 0, "{}", document(&out));
+    assert_eq!(document(&out)["assetVersions"].as_array().unwrap().len(), 100);
+    assert_eq!(document(&out)["nextPageToken"], "page-100");
+    assert_eq!(server.requests().len(), 100, "unique next tokens cannot make pagination unbounded");
+}

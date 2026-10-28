@@ -213,7 +213,7 @@ impl<'a> Executor<'a> {
             }
         }
     }
-    pub fn send_all(&self, call: Call<'_>, max_items: Option<usize>) -> Result<Value, Failure> {
+    pub fn send_all(&self, call: Call<'_>, max_items: Option<usize>, max_pages: u32) -> Result<Value, Failure> {
         let p = call.op().pagination.as_ref().ok_or_else(|| Failure::usage("operation does not declare pagination"))?;
         if max_items == Some(0) {
             return Err(Failure::usage("--max-items must be positive"));
@@ -227,6 +227,7 @@ impl<'a> Executor<'a> {
         let mut items = vec![];
         let mut tokens = BTreeSet::new();
         let mut resize_history = History::default();
+        let mut pages = 0;
         loop {
             let page = self.send(&call)?.json()?;
             let page_items = page[&p.items_field]
@@ -249,13 +250,14 @@ impl<'a> Executor<'a> {
                     _ => unreachable!("page overflow returns retry or failure"),
                 }
             }
+            pages += 1;
             items.extend(page_items.iter().cloned());
             if result.is_null() {
                 result = page.clone();
             }
             let token = page[&p.next_field].as_str().unwrap_or_default();
             result[&p.next_field] = json!(token);
-            if token.is_empty() || max_items.is_some_and(|limit| items.len() >= limit) {
+            if token.is_empty() || pages >= max_pages || max_items.is_some_and(|limit| items.len() >= limit) {
                 break;
             }
             if !tokens.insert(token.to_owned()) {

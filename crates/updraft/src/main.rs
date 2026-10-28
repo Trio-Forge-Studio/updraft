@@ -123,7 +123,7 @@ fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
             Command::Call(args) => {
                 let call = prepared.expect("call arguments were validated");
                 if args.all {
-                    executor.send_all(call, args.max_items)
+                    executor.send_all(call, args.max_items, args.max_pages)
                 } else {
                     let reply = executor.send(&call)?;
                     if !args.no_wait && call.op().completion.is_some() {

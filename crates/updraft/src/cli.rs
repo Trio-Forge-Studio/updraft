@@ -55,6 +55,8 @@ pub struct CallArgs {
     pub all: bool,
     #[arg(long, requires = "all")]
     pub max_items: Option<usize>,
+    #[arg(long, requires = "all", default_value_t = 100, value_parser = clap::value_parser!(u32).range(1..))]
+    pub max_pages: u32,
     #[arg(long)]
     pub no_wait: bool,
 }

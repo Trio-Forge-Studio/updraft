@@ -492,3 +492,61 @@ fn auth_failures_share_scope_and_profile_metadata() {
         "body-key introspection has no declared scope requirements"
     );
 }
+
+#[test]
+fn excessive_retry_after_stops_without_waiting_or_retrying() {
+    for (name, pairs, status, expected) in [
+        ("assets.get-asset", vec!["assetId=42"], 429, 7),
+        (
+            "cloud.create-universe-place-luau-execution-session-task",
+            vec!["universe_id=1", "place_id=2", "--body", "{}"],
+            503,
+            5,
+        ),
+    ] {
+        let server = MockServer::start();
+        let m = server.mock(|_, t| {
+            t.status(status).header("retry-after", "301");
+        });
+        let out = command(&server.base_url()).args(["call", name]).args(pairs).output().unwrap();
+        assert_eq!(code(&out), expected);
+        assert_eq!(document(&out)["error"]["retryAfter"], 301, "report the requested wait");
+        m.assert_calls(1);
+    }
+}
+
+#[test]
+fn max_pages_stops_with_a_continuation_token() {
+    let server = MockServer::start();
+    let first = server.mock(|w, t| {
+        w.query_param_missing("pageToken");
+        t.json_body(json!({"assetVersions":[1],"nextPageToken":"two"}));
+    });
+    let second = server.mock(|w, t| {
+        w.query_param("pageToken", "two");
+        t.json_body(json!({"assetVersions":[2],"nextPageToken":"three"}));
+    });
+    let out = command(&server.base_url())
+        .args(["call", "assets.list-asset-versions", "assetId=42", "--all", "--max-pages", "2"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 0, "{}", document(&out));
+    assert_eq!(document(&out)["assetVersions"], json!([1, 2]));
+    assert_eq!(document(&out)["nextPageToken"], "three");
+    first.assert_calls(1);
+    second.assert_calls(1);
+}
+
+#[test]
+fn an_unresizable_overfull_page_is_a_usage_error() {
+    let server = MockServer::start();
+    let m = server.mock(|_, t| {
+        t.json_body(json!({"assetVersions":[1,2],"nextPageToken":"next"}));
+    });
+    let out = command(&server.base_url())
+        .args(["call", "assets.list-asset-versions", "assetId=42", "maxPageSize=1", "--all", "--max-items", "1"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 2, "a smaller item cap cannot silently drop records");
+    m.assert_calls(1);
+}
