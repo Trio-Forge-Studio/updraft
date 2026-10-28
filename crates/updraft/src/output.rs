@@ -82,6 +82,9 @@ impl Output {
     }
 }
 fn encoded_secret_len(text: &str, key: &str) -> Option<usize> {
+    if text.starts_with(key) {
+        return Some(key.len());
+    }
     let mut at = 0;
     for c in key.chars() {
         let rest = &text[at..];
@@ -109,6 +112,24 @@ fn encoded_secret_len(text: &str, key: &str) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn literal_credentials_win_over_ambiguous_escape_prefixes() {
+        let key = r"Key\\tail";
+        let mut output = Output::new(false);
+        output.redact_also(&crate::auth::Secret::from_string(key.into()));
+        assert_eq!(
+            output.redact(key),
+            "<redacted>",
+            "consecutive literal backslashes must not be consumed as one escaped character"
+        );
+        let encoded = serde_json::to_string(key).unwrap();
+        assert_eq!(
+            output.redact(&encoded[1..encoded.len() - 1]),
+            "<redacted>",
+            "JSON escaping must redact the same selected credential"
+        );
+    }
     #[test]
     fn keys_and_signed_urls_are_redacted() {
         let mut output = Output::new(false);
