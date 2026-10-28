@@ -99,36 +99,6 @@
       "safety": "unsafe"
     },
     {
-      "name": "ads-management.get-advertisable-universes",
-      "key": "GET /ads-management/v1/advertisable-universes",
-      "method": "GET",
-      "server": "apis",
-      "path": "/ads-management/v1/advertisable-universes",
-      "summary": "List advertisable universes",
-      "description": "Returns the universe IDs of every experience the billing account is eligible to advertise. The complete list is returned in a single response; this endpoint is not paginated. Use these IDs to set targetUniverseId when creating a campaign, and resolve experience names with the Open Cloud Universe API.",
-      "tags": [
-        "Advertising"
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "internal_public_v1.ListAdvertisableUniversesResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "ad.campaign:read"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read"
-    },
-    {
       "name": "ads-management.get-billing-account",
       "key": "GET /ads-management/v1/billing-accounts/{id}",
       "method": "GET",
@@ -261,6 +231,39 @@
       },
       "stability": "beta",
       "safety": "read"
+    },
+    {
+      "name": "ads-management.list-advertisable-universes",
+      "key": "GET /ads-management/v1/advertisable-universes",
+      "method": "GET",
+      "server": "apis",
+      "path": "/ads-management/v1/advertisable-universes",
+      "summary": "List advertisable universes",
+      "description": "Returns the universe IDs of every experience the billing account is eligible to advertise. The complete list is returned in a single response; this endpoint is not paginated. Use these IDs to set targetUniverseId when creating a campaign, and resolve experience names with the Open Cloud Universe API.",
+      "tags": [
+        "Advertising"
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "internal_public_v1.ListAdvertisableUniversesResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "ad.campaign:read"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "ads-management.list-billing-accounts",
@@ -950,124 +953,6 @@
       "safety": "unsafe"
     },
     {
-      "name": "analytics-query.create-universe-dimension-value",
-      "key": "POST /analytics-query-api/v1/universes/{universeId}/dimension-values",
-      "method": "POST",
-      "server": "apis",
-      "path": "/analytics-query-api/v1/universes/{universeId}/dimension-values",
-      "summary": "Queries dimension values for a universe.",
-      "description": "See the <a href=\"https://create.roblox.com/docs/cloud/guides/analytics\">Analytics guide</a> for more information.",
-      "tags": [
-        "Analytics"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The universe ID to query dimension values for."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "AnalyticsQueryPublicApi.DimensionValuesRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "DimensionValuesOperationResult"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe.analytics:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read",
-      "completion": {
-        "type": "operation"
-      },
-      "patches": [
-        "A query sent as POST. Safe to repeat."
-      ]
-    },
-    {
-      "name": "analytics-query.create-universe-metric",
-      "key": "POST /analytics-query-api/v1/universes/{universeId}/metrics",
-      "method": "POST",
-      "server": "apis",
-      "path": "/analytics-query-api/v1/universes/{universeId}/metrics",
-      "summary": "Queries time series metric data for a universe.",
-      "description": "See the <a href=\"https://create.roblox.com/docs/cloud/guides/analytics\">Analytics guide</a> for more information.",
-      "tags": [
-        "Analytics"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The universe ID to query metrics for."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "AnalyticsQueryPublicApi.QueryRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "QueryOperationResult"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe.analytics:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read",
-      "completion": {
-        "type": "operation"
-      },
-      "patches": [
-        "A query sent as POST. Safe to repeat."
-      ]
-    },
-    {
       "name": "analytics-query.get-universe-operations-dimension-value",
       "key": "GET /analytics-query-api/v1/universes/{universeId}/operations/dimension-values/{operationId}",
       "method": "GET",
@@ -1174,6 +1059,126 @@
       "completion": {
         "type": "operation"
       }
+    },
+    {
+      "name": "analytics-query.query-universe-dimension-values",
+      "key": "POST /analytics-query-api/v1/universes/{universeId}/dimension-values",
+      "method": "POST",
+      "server": "apis",
+      "path": "/analytics-query-api/v1/universes/{universeId}/dimension-values",
+      "summary": "Queries dimension values for a universe.",
+      "description": "See the <a href=\"https://create.roblox.com/docs/cloud/guides/analytics\">Analytics guide</a> for more information.",
+      "tags": [
+        "Analytics"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The universe ID to query dimension values for."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "AnalyticsQueryPublicApi.DimensionValuesRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "DimensionValuesOperationResult"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe.analytics:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read",
+      "completion": {
+        "type": "operation"
+      },
+      "patches": [
+        "A query sent as POST. Safe to repeat.",
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "analytics-query.query-universe-metrics",
+      "key": "POST /analytics-query-api/v1/universes/{universeId}/metrics",
+      "method": "POST",
+      "server": "apis",
+      "path": "/analytics-query-api/v1/universes/{universeId}/metrics",
+      "summary": "Queries time series metric data for a universe.",
+      "description": "See the <a href=\"https://create.roblox.com/docs/cloud/guides/analytics\">Analytics guide</a> for more information.",
+      "tags": [
+        "Analytics"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The universe ID to query metrics for."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "AnalyticsQueryPublicApi.QueryRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "QueryOperationResult"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe.analytics:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read",
+      "completion": {
+        "type": "operation"
+      },
+      "patches": [
+        "A query sent as POST. Safe to repeat.",
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "api-keys.introspect",
@@ -1549,7 +1554,7 @@
       ]
     },
     {
-      "name": "asset-permissions.update-assets-permissions",
+      "name": "asset-permissions.grant-assets-permissions",
       "key": "PATCH /asset-permissions-api/v1/assets/permissions",
       "method": "PATCH",
       "server": "apis",
@@ -1586,7 +1591,10 @@
         }
       },
       "stability": "beta",
-      "safety": "unsafe"
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "assets.archive-asset",
@@ -8487,127 +8495,6 @@
       "safety": "unsafe"
     },
     {
-      "name": "creator-configs.create-configs-universe-repository-publish",
-      "key": "POST /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/publish",
-      "operation_id": "CreatorConfigsPublicApi_PublishDraft",
-      "method": "POST",
-      "server": "apis",
-      "path": "/creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/publish",
-      "summary": "Publishes draft changes.",
-      "description": "Applies the current draft to the published config. Requires a draft hash and optional message and deployment strategy.",
-      "tags": [
-        "Configs"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "repository",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "InExperienceConfig"
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "PublishDraftRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "PublishDraftResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:write",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "unsafe"
-    },
-    {
-      "name": "creator-configs.create-configs-universe-repository-revision-restore",
-      "key": "POST /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/revisions/{revisionId}/restore",
-      "operation_id": "CreatorConfigsPublicApi_RestoreRevision",
-      "method": "POST",
-      "server": "apis",
-      "path": "/creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/revisions/{revisionId}/restore",
-      "summary": "Stages a revert to a previous revision.",
-      "description": "Attempts to restore configs to the provided revision. This will clear the staging and stage a revert commit. You must call publish for the revert to take effect.",
-      "tags": [
-        "Configs"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "repository",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "InExperienceConfig"
-        },
-        {
-          "name": "revisionId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "DraftHashResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:write",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "unsafe"
-    },
-    {
       "name": "creator-configs.create-experimentation-universe-experiment",
       "key": "POST /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments",
       "operation_id": "PublicExperimentation_CreateExperiment",
@@ -8723,7 +8610,7 @@
       "safety": "idempotent"
     },
     {
-      "name": "creator-configs.delete-experimentation-universe-experiment",
+      "name": "creator-configs.discard-experimentation-universe-experiment",
       "key": "DELETE /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}",
       "operation_id": "PublicExperimentation_DiscardExperiment",
       "method": "DELETE",
@@ -8770,7 +8657,10 @@
         }
       },
       "stability": "experimental",
-      "safety": "idempotent"
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "creator-configs.get-configs-universe-repository",
@@ -8926,7 +8816,156 @@
       "safety": "read"
     },
     {
-      "name": "creator-configs.get-configs-universe-repository-revisions",
+      "name": "creator-configs.get-experimentation-universe-experiment",
+      "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}",
+      "operation_id": "PublicExperimentation_GetExperiment",
+      "method": "GET",
+      "server": "apis",
+      "path": "/creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}",
+      "summary": "Gets an experiment by ID.",
+      "description": "Returns the `experiment`. Returns 404 if the experiment doesn't exist for the universe.",
+      "tags": [
+        "Experiments"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "experimentId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "GetExperimentResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "read"
+    },
+    {
+      "name": "creator-configs.get-experimentation-universe-experiment-stats",
+      "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}/stats",
+      "operation_id": "PublicExperimentation_GetExperimentStats",
+      "method": "GET",
+      "server": "apis",
+      "path": "/creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}/stats",
+      "summary": "Gets diagnostic stats for an experiment.",
+      "tags": [
+        "Experiments"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "experimentId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "GetExperimentStatsResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "read"
+    },
+    {
+      "name": "creator-configs.get-experimentation-universe-operation",
+      "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/operations/{operationId}",
+      "operation_id": "PublicExperimentation_GetExperimentOperationStatus",
+      "method": "GET",
+      "server": "apis",
+      "path": "/creator-configs-public-api/v1/experimentation/universes/{universeId}/operations/{operationId}",
+      "summary": "Gets the status of an experiment async operation.",
+      "description": "Polled by clients between mutations (Create / Update / Start / Schedule / Complete / Discard) to determine when the operation reaches `done = true`.",
+      "tags": [
+        "Experiments"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "operationId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "GetExperimentOperationStatusResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "read"
+    },
+    {
+      "name": "creator-configs.list-configs-universe-repository-revisions",
       "key": "GET /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/revisions",
       "operation_id": "CreatorConfigsPublicApi_ListRevisions",
       "method": "GET",
@@ -9030,109 +9069,13 @@
         }
       },
       "stability": "beta",
-      "safety": "read"
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
-      "name": "creator-configs.get-experimentation-universe-experiment",
-      "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}",
-      "operation_id": "PublicExperimentation_GetExperiment",
-      "method": "GET",
-      "server": "apis",
-      "path": "/creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}",
-      "summary": "Gets an experiment by ID.",
-      "description": "Returns the `experiment`. Returns 404 if the experiment doesn't exist for the universe.",
-      "tags": [
-        "Experiments"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "experimentId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "GetExperimentResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "read"
-    },
-    {
-      "name": "creator-configs.get-experimentation-universe-experiment-stats",
-      "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}/stats",
-      "operation_id": "PublicExperimentation_GetExperimentStats",
-      "method": "GET",
-      "server": "apis",
-      "path": "/creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}/stats",
-      "summary": "Gets diagnostic stats for an experiment.",
-      "tags": [
-        "Experiments"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "experimentId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "GetExperimentStatsResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "read"
-    },
-    {
-      "name": "creator-configs.get-experimentation-universe-experiments",
+      "name": "creator-configs.list-experimentation-universe-experiments",
       "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments",
       "operation_id": "PublicExperimentation_ListExperiments",
       "method": "GET",
@@ -9234,57 +9177,10 @@
         }
       },
       "stability": "experimental",
-      "safety": "read"
-    },
-    {
-      "name": "creator-configs.get-experimentation-universe-operation",
-      "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/operations/{operationId}",
-      "operation_id": "PublicExperimentation_GetExperimentOperationStatus",
-      "method": "GET",
-      "server": "apis",
-      "path": "/creator-configs-public-api/v1/experimentation/universes/{universeId}/operations/{operationId}",
-      "summary": "Gets the status of an experiment async operation.",
-      "description": "Polled by clients between mutations (Create / Update / Start / Schedule / Complete / Discard) to determine when the operation reaches `done = true`.",
-      "tags": [
-        "Experiments"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "operationId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "GetExperimentOperationStatusResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "read"
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "creator-configs.overwrite-configs-universe-repository-draft",
@@ -9347,6 +9243,133 @@
       },
       "stability": "beta",
       "safety": "idempotent"
+    },
+    {
+      "name": "creator-configs.publish-configs-universe-repository-draft",
+      "key": "POST /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/publish",
+      "operation_id": "CreatorConfigsPublicApi_PublishDraft",
+      "method": "POST",
+      "server": "apis",
+      "path": "/creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/publish",
+      "summary": "Publishes draft changes.",
+      "description": "Applies the current draft to the published config. Requires a draft hash and optional message and deployment strategy.",
+      "tags": [
+        "Configs"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "repository",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "InExperienceConfig"
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "PublishDraftRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "PublishDraftResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:write",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "creator-configs.restore-configs-universe-repository-revision",
+      "key": "POST /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/revisions/{revisionId}/restore",
+      "operation_id": "CreatorConfigsPublicApi_RestoreRevision",
+      "method": "POST",
+      "server": "apis",
+      "path": "/creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/revisions/{revisionId}/restore",
+      "summary": "Stages a revert to a previous revision.",
+      "description": "Attempts to restore configs to the provided revision. This will clear the staging and stage a revert commit. You must call publish for the revert to take effect.",
+      "tags": [
+        "Configs"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "repository",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "InExperienceConfig"
+        },
+        {
+          "name": "revisionId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "DraftHashResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:write",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "creator-configs.schedule-experimentation-universe-experiment",
@@ -9583,231 +9606,6 @@
       "safety": "unsafe"
     },
     {
-      "name": "datastores.create-universe-standard-datastores-datastore-entries-entry",
-      "key": "POST /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry",
-      "operation_id": "Entries_SetEntryAsync",
-      "method": "POST",
-      "server": "apis",
-      "path": "/datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry",
-      "summary": "Set entry.",
-      "description": "Sets the value, metadata and user IDs associated with an entry.",
-      "tags": [
-        "Data and memory stores"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The identifier of the experience with data stores that you want to access. You can find your experience's universe ID on Creator Hub."
-        },
-        {
-          "name": "datastoreName",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The name of the data store."
-        },
-        {
-          "name": "entryKey",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The key identifying the entry."
-        },
-        {
-          "name": "matchVersion",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "Provide to update only if the current version matches this."
-        },
-        {
-          "name": "exclusiveCreate",
-          "in": "query",
-          "kind": {
-            "type": "boolean"
-          },
-          "description": "Create the entry only if it does not exist."
-        },
-        {
-          "name": "scope",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The value is `global` by default. See [Scopes](/cloud-services/data-stores/index.md#scopes)."
-        },
-        {
-          "name": "roblox-entry-attributes",
-          "in": "header",
-          "kind": {
-            "type": "string"
-          },
-          "description": "Attributes to be associated with new version of the entry. Serialized by JSON map objects. If not provided, existing attributes are cleared."
-        },
-        {
-          "name": "roblox-entry-userids",
-          "in": "header",
-          "kind": {
-            "type": "string"
-          },
-          "description": "Comma-separated list of Roblox user IDs tagged with the entry. If not provided, existing user IDs are cleared."
-        },
-        {
-          "name": "content-md5",
-          "in": "header",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The base64-encoded MD5 checksum of the content. See [Content-MD5](/cloud/guides/data-stores/request-handling.md#content-md5)."
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "string"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "EntryVersion"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe-datastores.objects:update"
-            },
-            {
-              "name": "universe-datastores.objects:create"
-            },
-            {
-              "name": "universe-datastores.control:create"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "unsafe",
-      "alternatives": [
-        "cloud.update-universe-data-store-entry",
-        "cloud.update-universe-data-store-scope-entry"
-      ]
-    },
-    {
-      "name": "datastores.create-universe-standard-datastores-datastore-entries-entry-increment",
-      "key": "POST /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/increment",
-      "operation_id": "Entries_IncrementEntryAsync",
-      "method": "POST",
-      "server": "apis",
-      "path": "/datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/increment",
-      "summary": "Increment entry",
-      "description": "Increments the value for an entry by a given amount, or create a new entry with that amount. Returns the entry and metadata.",
-      "tags": [
-        "Data and memory stores"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The identifier of the experience with data stores that you want to access. You can find your experience's universe ID on Creator Hub."
-        },
-        {
-          "name": "datastoreName",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The name of the data store."
-        },
-        {
-          "name": "entryKey",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The key identifying the entry."
-        },
-        {
-          "name": "incrementBy",
-          "in": "query",
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The amount by which the entry should be incremented, or the starting value if it doesn't exist."
-        },
-        {
-          "name": "scope",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The value is `global` by default. See [Scopes](/cloud-services/data-stores/index.md#scopes)."
-        },
-        {
-          "name": "roblox-entry-attributes",
-          "in": "header",
-          "kind": {
-            "type": "string"
-          },
-          "description": "Attributes to be associated with new version of the entry. Serialized by JSON map objects. If not provided, existing attributes are cleared."
-        },
-        {
-          "name": "roblox-entry-userids",
-          "in": "header",
-          "kind": {
-            "type": "string"
-          },
-          "description": "A comma-separated list of Roblox user IDs that the entry is tagged with. If not provided, existing user IDs are cleared."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "any"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe-datastores.objects:update"
-            },
-            {
-              "name": "universe-datastores.objects:create"
-            },
-            {
-              "name": "universe-datastores.control:create"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "unsafe",
-      "alternatives": [
-        "cloud.increment-universe-data-store-entry",
-        "cloud.increment-universe-data-store-scope-entry"
-      ]
-    },
-    {
       "name": "datastores.delete-universe-standard-datastores-datastore-entries-entry",
       "key": "DELETE /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry",
       "operation_id": "Entries_DeleteEntryAsync",
@@ -9943,116 +9741,6 @@
       ]
     },
     {
-      "name": "datastores.get-universe-standard-datastores-datastore-entries-entry-versions",
-      "key": "GET /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/versions",
-      "operation_id": "Entries_ListEntryVersionsAsync",
-      "method": "GET",
-      "server": "apis",
-      "path": "/datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/versions",
-      "summary": "List entry versions",
-      "description": "Returns a list of versions for an entry.",
-      "tags": [
-        "Data and memory stores"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The identifier of the experience with data stores that you want to access. You can find your experience's universe ID on Creator Hub."
-        },
-        {
-          "name": "datastoreName",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The name of the data store."
-        },
-        {
-          "name": "entryKey",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The key identifying the entry."
-        },
-        {
-          "name": "scope",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The value is `global` by default. See [Scopes](/cloud-services/data-stores/index.md#scopes)."
-        },
-        {
-          "name": "cursor",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "Provide to request the next set of data."
-        },
-        {
-          "name": "startTime",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "Provide to not include versions earlier than this timestamp."
-        },
-        {
-          "name": "endTime",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "Provide to not include versions later than this timestamp."
-        },
-        {
-          "name": "sortOrder",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "Either `Ascending` (earlier versions first) or `Descending` (later versions first)."
-        },
-        {
-          "name": "limit",
-          "in": "query",
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The maximum number of items to return. Each call only reads one partition, so it can return fewer than the given value when running out of objectives on one partition."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "EntryVersion"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe-datastores.versions:list"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read",
-      "alternatives": [
-        "cloud.list-revisions-universe-data-store-entry",
-        "cloud.list-revisions-universe-data-store-scope-entry"
-      ]
-    },
-    {
       "name": "datastores.get-universe-standard-datastores-datastore-entries-entry-versions-version",
       "key": "GET /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/versions/version",
       "operation_id": "Entries_GetEntryVersionAsync",
@@ -10127,6 +9815,108 @@
       "alternatives": [
         "cloud.get-universe-data-store-entry",
         "cloud.get-universe-data-store-scope-entry"
+      ]
+    },
+    {
+      "name": "datastores.increment-universe-standard-datastores-datastore-entries-entry",
+      "key": "POST /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/increment",
+      "operation_id": "Entries_IncrementEntryAsync",
+      "method": "POST",
+      "server": "apis",
+      "path": "/datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/increment",
+      "summary": "Increment entry",
+      "description": "Increments the value for an entry by a given amount, or create a new entry with that amount. Returns the entry and metadata.",
+      "tags": [
+        "Data and memory stores"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The identifier of the experience with data stores that you want to access. You can find your experience's universe ID on Creator Hub."
+        },
+        {
+          "name": "datastoreName",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The name of the data store."
+        },
+        {
+          "name": "entryKey",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The key identifying the entry."
+        },
+        {
+          "name": "incrementBy",
+          "in": "query",
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The amount by which the entry should be incremented, or the starting value if it doesn't exist."
+        },
+        {
+          "name": "scope",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The value is `global` by default. See [Scopes](/cloud-services/data-stores/index.md#scopes)."
+        },
+        {
+          "name": "roblox-entry-attributes",
+          "in": "header",
+          "kind": {
+            "type": "string"
+          },
+          "description": "Attributes to be associated with new version of the entry. Serialized by JSON map objects. If not provided, existing attributes are cleared."
+        },
+        {
+          "name": "roblox-entry-userids",
+          "in": "header",
+          "kind": {
+            "type": "string"
+          },
+          "description": "A comma-separated list of Roblox user IDs that the entry is tagged with. If not provided, existing user IDs are cleared."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "any"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe-datastores.objects:update"
+            },
+            {
+              "name": "universe-datastores.objects:create"
+            },
+            {
+              "name": "universe-datastores.control:create"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "unsafe",
+      "alternatives": [
+        "cloud.increment-universe-data-store-entry",
+        "cloud.increment-universe-data-store-scope-entry"
+      ],
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
       ]
     },
     {
@@ -10342,7 +10132,249 @@
       ]
     },
     {
-      "name": "develop.create-universe-activate",
+      "name": "datastores.list-universe-standard-datastores-datastore-entries-entry-versions",
+      "key": "GET /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/versions",
+      "operation_id": "Entries_ListEntryVersionsAsync",
+      "method": "GET",
+      "server": "apis",
+      "path": "/datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/versions",
+      "summary": "List entry versions",
+      "description": "Returns a list of versions for an entry.",
+      "tags": [
+        "Data and memory stores"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The identifier of the experience with data stores that you want to access. You can find your experience's universe ID on Creator Hub."
+        },
+        {
+          "name": "datastoreName",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The name of the data store."
+        },
+        {
+          "name": "entryKey",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The key identifying the entry."
+        },
+        {
+          "name": "scope",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The value is `global` by default. See [Scopes](/cloud-services/data-stores/index.md#scopes)."
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "Provide to request the next set of data."
+        },
+        {
+          "name": "startTime",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "Provide to not include versions earlier than this timestamp."
+        },
+        {
+          "name": "endTime",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "Provide to not include versions later than this timestamp."
+        },
+        {
+          "name": "sortOrder",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "Either `Ascending` (earlier versions first) or `Descending` (later versions first)."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The maximum number of items to return. Each call only reads one partition, so it can return fewer than the given value when running out of objectives on one partition."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "EntryVersion"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe-datastores.versions:list"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read",
+      "alternatives": [
+        "cloud.list-revisions-universe-data-store-entry",
+        "cloud.list-revisions-universe-data-store-scope-entry"
+      ],
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "datastores.set-universe-standard-datastores-datastore-entries-entry",
+      "key": "POST /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry",
+      "operation_id": "Entries_SetEntryAsync",
+      "method": "POST",
+      "server": "apis",
+      "path": "/datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry",
+      "summary": "Set entry.",
+      "description": "Sets the value, metadata and user IDs associated with an entry.",
+      "tags": [
+        "Data and memory stores"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The identifier of the experience with data stores that you want to access. You can find your experience's universe ID on Creator Hub."
+        },
+        {
+          "name": "datastoreName",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The name of the data store."
+        },
+        {
+          "name": "entryKey",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The key identifying the entry."
+        },
+        {
+          "name": "matchVersion",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "Provide to update only if the current version matches this."
+        },
+        {
+          "name": "exclusiveCreate",
+          "in": "query",
+          "kind": {
+            "type": "boolean"
+          },
+          "description": "Create the entry only if it does not exist."
+        },
+        {
+          "name": "scope",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The value is `global` by default. See [Scopes](/cloud-services/data-stores/index.md#scopes)."
+        },
+        {
+          "name": "roblox-entry-attributes",
+          "in": "header",
+          "kind": {
+            "type": "string"
+          },
+          "description": "Attributes to be associated with new version of the entry. Serialized by JSON map objects. If not provided, existing attributes are cleared."
+        },
+        {
+          "name": "roblox-entry-userids",
+          "in": "header",
+          "kind": {
+            "type": "string"
+          },
+          "description": "Comma-separated list of Roblox user IDs tagged with the entry. If not provided, existing user IDs are cleared."
+        },
+        {
+          "name": "content-md5",
+          "in": "header",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The base64-encoded MD5 checksum of the content. See [Content-MD5](/cloud/guides/data-stores/request-handling.md#content-md5)."
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "string"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "EntryVersion"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe-datastores.objects:update"
+            },
+            {
+              "name": "universe-datastores.objects:create"
+            },
+            {
+              "name": "universe-datastores.control:create"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "unsafe",
+      "alternatives": [
+        "cloud.update-universe-data-store-entry",
+        "cloud.update-universe-data-store-scope-entry"
+      ],
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "develop.activate-universe",
       "key": "POST /legacy-develop/v1/universes/{universeId}/activate",
       "method": "POST",
       "server": "apis",
@@ -10380,51 +10412,13 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe"
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
-      "name": "develop.create-universe-deactivate",
-      "key": "POST /legacy-develop/v1/universes/{universeId}/deactivate",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-develop/v1/universes/{universeId}/deactivate",
-      "summary": "Deactivates a universe.",
-      "tags": [
-        "Universes"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The universe id."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-universe:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "develop.delete-teamtest",
+      "name": "develop.close-teamtest",
       "key": "DELETE /legacy-develop/v2/teamtest/{placeId}",
       "method": "DELETE",
       "server": "apis",
@@ -10472,17 +10466,19 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "idempotent"
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
-      "name": "develop.delete-universe-teamcreate-memberships",
-      "key": "DELETE /legacy-develop/v1/universes/{universeId}/teamcreate/memberships",
-      "method": "DELETE",
+      "name": "develop.deactivate-universe",
+      "key": "POST /legacy-develop/v1/universes/{universeId}/deactivate",
+      "method": "POST",
       "server": "apis",
-      "path": "/legacy-develop/v1/universes/{universeId}/teamcreate/memberships",
-      "summary": "Removes a user from a TeamCreate permissions list.",
+      "path": "/legacy-develop/v1/universes/{universeId}/deactivate",
+      "summary": "Deactivates a universe.",
       "tags": [
-        "Team Create",
         "Universes"
       ],
       "params": [
@@ -10493,20 +10489,9 @@
           "kind": {
             "type": "integer"
           },
-          "description": "The universe Id."
+          "description": "The universe id."
         }
       ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.Api.Develop.Models.TeamCreateMembershipRequest"
-          }
-        }
-      },
       "response": {
         "type": "json",
         "shape": {
@@ -10518,79 +10503,17 @@
         "apikey": {
           "scopes": [
             {
-              "name": "legacy-team-collaboration:manage"
+              "name": "legacy-universe:manage"
             }
           ]
         }
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "idempotent"
-    },
-    {
-      "name": "develop.get-place-teamcreate-active-session-members",
-      "key": "GET /legacy-develop/v1/places/{placeId}/teamcreate/active_session/members",
-      "method": "GET",
-      "server": "apis",
-      "path": "/legacy-develop/v1/places/{placeId}/teamcreate/active_session/members",
-      "summary": "List of users in the active Team Create session",
-      "tags": [
-        "Places",
-        "Team Create",
-        "Universes"
-      ],
-      "params": [
-        {
-          "name": "placeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The place Id."
-        },
-        {
-          "name": "limit",
-          "in": "query",
-          "kind": {
-            "type": "enum",
-            "values": [
-              "10",
-              "25",
-              "50",
-              "100"
-            ]
-          },
-          "description": "The number of results per request."
-        },
-        {
-          "name": "cursor",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "The paging cursor for the previous or next page."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.Models.ApiArrayResponse_Roblox.Web.Responses.Users.SkinnyUserResponse_"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-team-collaboration:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "read"
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "develop.get-universe-permissions",
@@ -10795,6 +10718,130 @@
       "stability": "experimental",
       "legacy": true,
       "safety": "read"
+    },
+    {
+      "name": "develop.list-place-teamcreate-active-session-members",
+      "key": "GET /legacy-develop/v1/places/{placeId}/teamcreate/active_session/members",
+      "method": "GET",
+      "server": "apis",
+      "path": "/legacy-develop/v1/places/{placeId}/teamcreate/active_session/members",
+      "summary": "List of users in the active Team Create session",
+      "tags": [
+        "Places",
+        "Team Create",
+        "Universes"
+      ],
+      "params": [
+        {
+          "name": "placeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The place Id."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "kind": {
+            "type": "enum",
+            "values": [
+              "10",
+              "25",
+              "50",
+              "100"
+            ]
+          },
+          "description": "The number of results per request."
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "The paging cursor for the previous or next page."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.Models.ApiArrayResponse_Roblox.Web.Responses.Users.SkinnyUserResponse_"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-team-collaboration:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "develop.remove-universe-teamcreate-memberships",
+      "key": "DELETE /legacy-develop/v1/universes/{universeId}/teamcreate/memberships",
+      "method": "DELETE",
+      "server": "apis",
+      "path": "/legacy-develop/v1/universes/{universeId}/teamcreate/memberships",
+      "summary": "Removes a user from a TeamCreate permissions list.",
+      "tags": [
+        "Team Create",
+        "Universes"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The universe Id."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.Api.Develop.Models.TeamCreateMembershipRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-team-collaboration:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "develop.update-universe-teamcreate",
@@ -11400,499 +11447,6 @@
       "stability": "unspecified",
       "legacy": true,
       "safety": "read"
-    },
-    {
-      "name": "game-internationalization.create-badge-icons-language-code",
-      "key": "POST /legacy-game-internationalization/v1/badges/{badgeId}/icons/language-codes/{languageCode}",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/badges/{badgeId}/icons/language-codes/{languageCode}",
-      "summary": "Update a badge's icon",
-      "tags": [
-        "Badges",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "badgeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The id of the badge"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of this icon to update"
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "multipart",
-          "parts": [
-            {
-              "name": "Files",
-              "kind": {
-                "type": "file"
-              }
-            }
-          ]
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-badge:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.create-developer-product-icons-language-code",
-      "key": "POST /legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}",
-      "summary": "Update a developer product's icon",
-      "tags": [
-        "Developer products",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "developerProductId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The id of the developer product"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of this icon to update"
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "multipart",
-          "parts": [
-            {
-              "name": "Files",
-              "kind": {
-                "type": "file"
-              }
-            }
-          ]
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-developer-product:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.create-game-icon-game-language-code",
-      "key": "POST /legacy-game-internationalization/v1/game-icon/games/{gameId}/language-codes/{languageCode}",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/game-icon/games/{gameId}/language-codes/{languageCode}",
-      "summary": "Update a game's icon",
-      "tags": [
-        "Localization",
-        "Universes"
-      ],
-      "params": [
-        {
-          "name": "gameId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The id of the game"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of this icon to update"
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "multipart",
-          "parts": [
-            {
-              "name": "Files",
-              "kind": {
-                "type": "file"
-              }
-            }
-          ]
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-universe:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.create-game-pass-icons-language-code",
-      "key": "POST /legacy-game-internationalization/v1/game-passes/{gamePassId}/icons/language-codes/{languageCode}",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/game-passes/{gamePassId}/icons/language-codes/{languageCode}",
-      "summary": "Update a game pass's icon",
-      "tags": [
-        "Game passes",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "gamePassId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The game pass id"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of this icon to update"
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "multipart",
-          "parts": [
-            {
-              "name": "Files",
-              "kind": {
-                "type": "file"
-              }
-            }
-          ]
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-game-pass:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.create-game-thumbnails-game-language-code-alt-text",
-      "key": "POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/alt-text",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/alt-text",
-      "summary": "Updates the game thumbnail alt text.",
-      "tags": [
-        "Localization",
-        "Thumbnails",
-        "Universes"
-      ],
-      "params": [
-        {
-          "name": "gameId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The game identifier."
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.GameInternationalization.Api.UpdateThumbnailAltTextRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "string"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-universe:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.create-game-thumbnails-game-language-code-image",
-      "key": "POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/image",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/image",
-      "summary": "Uploads the game thumbnail.",
-      "tags": [
-        "Localization",
-        "Thumbnails",
-        "Universes"
-      ],
-      "params": [
-        {
-          "name": "gameId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The game identifier."
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code."
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "multipart",
-          "parts": [
-            {
-              "name": "Files",
-              "kind": {
-                "type": "file"
-              }
-            }
-          ]
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.GameInternationalization.Api.Models.Response.UploadImageForGameThumbnailResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-universe:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.create-game-thumbnails-game-language-code-images-order",
-      "key": "POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/images/order",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/images/order",
-      "summary": "Orders the specified image Ids for the game thumbnails.",
-      "tags": [
-        "Localization",
-        "Thumbnails",
-        "Universes"
-      ],
-      "params": [
-        {
-          "name": "gameId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The game identifier."
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.GameInternationalization.Api.SortImageIdsRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-universe:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.create-name-description-games-translation-history",
-      "key": "POST /legacy-game-internationalization/v1/name-description/games/translation-history",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/name-description/games/translation-history",
-      "summary": "Gets the history for name or description in a provided language.",
-      "tags": [
-        "Localization",
-        "Universes"
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.GameInternationalization.Api.GetNameDescriptionHistoryV2Request"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.GameInternationalization.Api.GetNameDescriptionHistoryResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-universe:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
     },
     {
       "name": "game-internationalization.delete-badge-icons-language-code",
@@ -12669,6 +12223,51 @@
       "safety": "read"
     },
     {
+      "name": "game-internationalization.get-name-description-games-translation-history",
+      "key": "POST /legacy-game-internationalization/v1/name-description/games/translation-history",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/name-description/games/translation-history",
+      "summary": "Gets the history for name or description in a provided language.",
+      "tags": [
+        "Localization",
+        "Universes"
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.GameInternationalization.Api.GetNameDescriptionHistoryV2Request"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.GameInternationalization.Api.GetNameDescriptionHistoryResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-universe:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
       "name": "game-internationalization.get-supported-languages-game-automatic-translation-status",
       "key": "GET /legacy-game-internationalization/v1/supported-languages/games/{gameId}/automatic-translation-status",
       "method": "GET",
@@ -12753,6 +12352,124 @@
       "safety": "read"
     },
     {
+      "name": "game-internationalization.order-game-thumbnails-game-language-code-images",
+      "key": "POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/images/order",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/images/order",
+      "summary": "Orders the specified image Ids for the game thumbnails.",
+      "tags": [
+        "Localization",
+        "Thumbnails",
+        "Universes"
+      ],
+      "params": [
+        {
+          "name": "gameId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The game identifier."
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.GameInternationalization.Api.SortImageIdsRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-universe:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "game-internationalization.set-source-language-game",
+      "key": "PATCH /legacy-game-internationalization/v1/source-language/games/{gameId}",
+      "method": "PATCH",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/source-language/games/{gameId}",
+      "summary": "Sets the source language of a game",
+      "tags": [
+        "Localization",
+        "Universes"
+      ],
+      "params": [
+        {
+          "name": "gameId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "languageCode",
+          "in": "query",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-universe:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
       "name": "game-internationalization.update-badge-description-language-code",
       "key": "PATCH /legacy-game-internationalization/v1/badges/{badgeId}/description/language-codes/{languageCode}",
       "method": "PATCH",
@@ -12813,6 +12530,74 @@
       "stability": "experimental",
       "legacy": true,
       "safety": "unsafe"
+    },
+    {
+      "name": "game-internationalization.update-badge-icons-language-code",
+      "key": "POST /legacy-game-internationalization/v1/badges/{badgeId}/icons/language-codes/{languageCode}",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/badges/{badgeId}/icons/language-codes/{languageCode}",
+      "summary": "Update a badge's icon",
+      "tags": [
+        "Badges",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "badgeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The id of the badge"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of this icon to update"
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "multipart",
+          "parts": [
+            {
+              "name": "Files",
+              "kind": {
+                "type": "file"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-badge:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "game-internationalization.update-badge-name-description-language-code",
@@ -13001,6 +12786,74 @@
       "safety": "unsafe"
     },
     {
+      "name": "game-internationalization.update-developer-product-icons-language-code",
+      "key": "POST /legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}",
+      "summary": "Update a developer product's icon",
+      "tags": [
+        "Developer products",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "developerProductId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The id of the developer product"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of this icon to update"
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "multipart",
+          "parts": [
+            {
+              "name": "Files",
+              "kind": {
+                "type": "file"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-developer-product:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
       "name": "game-internationalization.update-developer-product-name-description-language-code",
       "key": "PATCH /legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description/language-codes/{languageCode}",
       "method": "PATCH",
@@ -13125,6 +12978,74 @@
       "safety": "unsafe"
     },
     {
+      "name": "game-internationalization.update-game-icon-game-language-code",
+      "key": "POST /legacy-game-internationalization/v1/game-icon/games/{gameId}/language-codes/{languageCode}",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/game-icon/games/{gameId}/language-codes/{languageCode}",
+      "summary": "Update a game's icon",
+      "tags": [
+        "Localization",
+        "Universes"
+      ],
+      "params": [
+        {
+          "name": "gameId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The id of the game"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of this icon to update"
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "multipart",
+          "parts": [
+            {
+              "name": "Files",
+              "kind": {
+                "type": "file"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-universe:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
       "name": "game-internationalization.update-game-pass-description-language-code",
       "key": "PATCH /legacy-game-internationalization/v1/game-passes/{gamePassId}/description/language-codes/{languageCode}",
       "method": "PATCH",
@@ -13185,6 +13106,74 @@
       "stability": "experimental",
       "legacy": true,
       "safety": "unsafe"
+    },
+    {
+      "name": "game-internationalization.update-game-pass-icons-language-code",
+      "key": "POST /legacy-game-internationalization/v1/game-passes/{gamePassId}/icons/language-codes/{languageCode}",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/game-passes/{gamePassId}/icons/language-codes/{languageCode}",
+      "summary": "Update a game pass's icon",
+      "tags": [
+        "Game passes",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "gamePassId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The game pass id"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of this icon to update"
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "multipart",
+          "parts": [
+            {
+              "name": "Files",
+              "kind": {
+                "type": "file"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-game-pass:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "game-internationalization.update-game-pass-name-description-language-code",
@@ -13311,6 +13300,71 @@
       "safety": "unsafe"
     },
     {
+      "name": "game-internationalization.update-game-thumbnails-game-language-code-alt-text",
+      "key": "POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/alt-text",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/alt-text",
+      "summary": "Updates the game thumbnail alt text.",
+      "tags": [
+        "Localization",
+        "Thumbnails",
+        "Universes"
+      ],
+      "params": [
+        {
+          "name": "gameId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The game identifier."
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.GameInternationalization.Api.UpdateThumbnailAltTextRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "string"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-universe:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
       "name": "game-internationalization.update-name-description-game",
       "key": "PATCH /legacy-game-internationalization/v1/name-description/games/{gameId}",
       "method": "PATCH",
@@ -13348,55 +13402,6 @@
         "shape": {
           "type": "ref",
           "name": "Roblox.GameInternationalization.Api.UpdateNameDescriptionsResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-universe:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.update-source-language-game",
-      "key": "PATCH /legacy-game-internationalization/v1/source-language/games/{gameId}",
-      "method": "PATCH",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/source-language/games/{gameId}",
-      "summary": "Sets the source language of a game",
-      "tags": [
-        "Localization",
-        "Universes"
-      ],
-      "params": [
-        {
-          "name": "gameId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "languageCode",
-          "in": "query",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
         }
       },
       "auth": {
@@ -13649,6 +13654,75 @@
       "stability": "experimental",
       "legacy": true,
       "safety": "unsafe"
+    },
+    {
+      "name": "game-internationalization.upload-game-thumbnails-game-language-code-image",
+      "key": "POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/image",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/image",
+      "summary": "Uploads the game thumbnail.",
+      "tags": [
+        "Localization",
+        "Thumbnails",
+        "Universes"
+      ],
+      "params": [
+        {
+          "name": "gameId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The game identifier."
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code."
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "multipart",
+          "parts": [
+            {
+              "name": "Files",
+              "kind": {
+                "type": "file"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.GameInternationalization.Api.Models.Response.UploadImageForGameThumbnailResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-universe:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "game-passes.create-universe-game-pass",
@@ -13964,47 +14038,6 @@
       "safety": "unsafe"
     },
     {
-      "name": "groups.create-groups-policy",
-      "key": "POST /legacy-groups/v1/groups/policies",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-groups/v1/groups/policies",
-      "summary": "Gets group policy info used for compliance.",
-      "tags": [
-        "Groups"
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.Groups.Api.GroupPolicyRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Groups.Api.GroupPoliciesResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-group:manage"
-            }
-          ]
-        }
-      },
-      "stability": "unspecified",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
       "name": "groups.get-group-settings",
       "key": "GET /legacy-groups/v1/groups/{groupId}/settings",
       "method": "GET",
@@ -14044,6 +14077,50 @@
       "stability": "unspecified",
       "legacy": true,
       "safety": "read"
+    },
+    {
+      "name": "groups.get-groups-policy",
+      "key": "POST /legacy-groups/v1/groups/policies",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-groups/v1/groups/policies",
+      "summary": "Gets group policy info used for compliance.",
+      "tags": [
+        "Groups"
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.Groups.Api.GroupPolicyRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Groups.Api.GroupPoliciesResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-group:manage"
+            }
+          ]
+        }
+      },
+      "stability": "unspecified",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "groups.get-user-groups-pending",
@@ -14256,6 +14333,61 @@
       }
     },
     {
+      "name": "groups.set-group-status",
+      "key": "PATCH /legacy-groups/v1/groups/{groupId}/status",
+      "method": "PATCH",
+      "server": "apis",
+      "path": "/legacy-groups/v1/groups/{groupId}/status",
+      "summary": "Sets group status",
+      "tags": [
+        "Groups"
+      ],
+      "params": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The group Id."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.Groups.Api.PostGroupStatusRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Groups.Api.ShoutResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-group:manage"
+            }
+          ]
+        }
+      },
+      "stability": "unspecified",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
       "name": "groups.update-group-description",
       "key": "PATCH /legacy-groups/v1/groups/{groupId}/description",
       "method": "PATCH",
@@ -14417,58 +14549,6 @@
       "safety": "unsafe"
     },
     {
-      "name": "groups.update-group-status",
-      "key": "PATCH /legacy-groups/v1/groups/{groupId}/status",
-      "method": "PATCH",
-      "server": "apis",
-      "path": "/legacy-groups/v1/groups/{groupId}/status",
-      "summary": "Sets group status",
-      "tags": [
-        "Groups"
-      ],
-      "params": [
-        {
-          "name": "groupId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The group Id."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.Groups.Api.PostGroupStatusRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Groups.Api.ShoutResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-group:manage"
-            }
-          ]
-        }
-      },
-      "stability": "unspecified",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
       "name": "localization-tables.create-autolocalization-game-autolocalizationtable",
       "key": "POST /legacy-localization-tables/v1/autolocalization/games/{gameId}/autolocalizationtable",
       "method": "POST",
@@ -14493,66 +14573,6 @@
         "shape": {
           "type": "ref",
           "name": "Roblox.LocalizationTables.Api.GameAutolocalizationInformationResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-universe:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "localization-tables.create-localization-table-table-entries-translation-history",
-      "key": "POST /legacy-localization-tables/v1/localization-table/tables/{tableId}/entries/translation-history",
-      "method": "POST",
-      "server": "apis",
-      "path": "/legacy-localization-tables/v1/localization-table/tables/{tableId}/entries/translation-history",
-      "summary": "Gets the translation history for each entry passed in.",
-      "tags": [
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "tableId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The entries' tableId."
-        },
-        {
-          "name": "gameId",
-          "in": "query",
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The game id."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.LocalizationTables.Api.GetTableEntriesTranslationHistoryRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.LocalizationTables.Api.GetTableEntriesTranslationHistoryResponse"
         }
       },
       "auth": {
@@ -14713,6 +14733,69 @@
       "safety": "read"
     },
     {
+      "name": "localization-tables.get-localization-table-table-entries-translation-history",
+      "key": "POST /legacy-localization-tables/v1/localization-table/tables/{tableId}/entries/translation-history",
+      "method": "POST",
+      "server": "apis",
+      "path": "/legacy-localization-tables/v1/localization-table/tables/{tableId}/entries/translation-history",
+      "summary": "Gets the translation history for each entry passed in.",
+      "tags": [
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "tableId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The entries' tableId."
+        },
+        {
+          "name": "gameId",
+          "in": "query",
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The game id."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.LocalizationTables.Api.GetTableEntriesTranslationHistoryRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.LocalizationTables.Api.GetTableEntriesTranslationHistoryResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-universe:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
       "name": "localization-tables.get-localization-table-table-entry-count",
       "key": "GET /legacy-localization-tables/v1/localization-table/tables/{tableId}/entry-count",
       "method": "GET",
@@ -14846,7 +14929,7 @@
       }
     },
     {
-      "name": "localization-tables.update-autolocalization-game-settings",
+      "name": "localization-tables.set-autolocalization-game-settings",
       "key": "PATCH /legacy-localization-tables/v1/autolocalization/games/{gameId}/settings",
       "method": "PATCH",
       "server": "apis",
@@ -14896,7 +14979,10 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe"
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "localization-tables.update-localization-table-table",
@@ -15034,7 +15120,7 @@
       "safety": "idempotent"
     },
     {
-      "name": "log-attribute.get-universe-regexes",
+      "name": "log-attribute.find-universe-regexes",
       "key": "GET /log-attribute-http-service/v1/universe-regexes",
       "operation_id": "LogAttributeService_Find",
       "method": "GET",
@@ -15076,60 +15162,13 @@
         }
       },
       "stability": "experimental",
-      "safety": "read"
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
-      "name": "log-attribute.set-universe-regexe",
-      "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}",
-      "operation_id": "LogAttributeService_Update",
-      "method": "PUT",
-      "server": "apis",
-      "path": "/log-attribute-http-service/v1/universe-regexes/{id}",
-      "tags": [
-        "Analytics"
-      ],
-      "params": [
-        {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          }
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "UpdateUniverseRegexHttpRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "UniverseRegexMutationHttpResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe.analytics:write"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "idempotent"
-    },
-    {
-      "name": "log-attribute.set-universe-regexe-ignore",
+      "name": "log-attribute.ignore-universe-regexe",
       "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}/ignore",
       "operation_id": "LogAttributeService_Ignore",
       "method": "PUT",
@@ -15161,10 +15200,13 @@
         }
       },
       "stability": "experimental",
-      "safety": "idempotent"
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
-      "name": "log-attribute.set-universe-regexe-reorder",
+      "name": "log-attribute.reorder-universe-regexe",
       "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}/reorder",
       "operation_id": "LogAttributeService_Reorder",
       "method": "PUT",
@@ -15211,10 +15253,66 @@
         }
       },
       "stability": "experimental",
-      "safety": "idempotent"
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
-      "name": "messaging.create-universe-topic",
+      "name": "log-attribute.update-universe-regexe",
+      "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}",
+      "operation_id": "LogAttributeService_Update",
+      "method": "PUT",
+      "server": "apis",
+      "path": "/log-attribute-http-service/v1/universe-regexes/{id}",
+      "tags": [
+        "Analytics"
+      ],
+      "params": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          }
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "UpdateUniverseRegexHttpRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "UniverseRegexMutationHttpResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe.analytics:write"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "messaging.publish-universe-topic",
       "key": "POST /messaging-service/v1/universes/{universeId}/topics/{topic}",
       "operation_id": "CrossServerMessaging_Publish",
       "method": "POST",
@@ -15272,6 +15370,9 @@
       "safety": "unsafe",
       "alternatives": [
         "cloud.publish-message-universe"
+      ],
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
       ]
     },
     {
@@ -15767,65 +15868,6 @@
       ]
     },
     {
-      "name": "place-version-history.create-version-note",
-      "key": "POST /place-version-history-api/v1/{placeId}/version/{version}/notes",
-      "operation_id": "PlaceVersion_UpdatePlaceVersionNotes",
-      "method": "POST",
-      "server": "apis",
-      "path": "/place-version-history-api/v1/{placeId}/version/{version}/notes",
-      "summary": "Endpoint used to modify the notes of a particular version for a place.",
-      "tags": [
-        "Places"
-      ],
-      "params": [
-        {
-          "name": "placeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "version",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "UpdatePlaceVersionNotesRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "UpdatePlaceVersionNotesResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe.place:write"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "unsafe"
-    },
-    {
       "name": "place-version-history.list-contributors",
       "key": "GET /place-version-history-api/v1/{placeId}/contributors",
       "operation_id": "PlaceVersion_GetPlaceContributors",
@@ -15995,7 +16037,69 @@
       }
     },
     {
-      "name": "publish.create-badge-icon",
+      "name": "place-version-history.update-version-note",
+      "key": "POST /place-version-history-api/v1/{placeId}/version/{version}/notes",
+      "operation_id": "PlaceVersion_UpdatePlaceVersionNotes",
+      "method": "POST",
+      "server": "apis",
+      "path": "/place-version-history-api/v1/{placeId}/version/{version}/notes",
+      "summary": "Endpoint used to modify the notes of a particular version for a place.",
+      "tags": [
+        "Places"
+      ],
+      "params": [
+        {
+          "name": "placeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "version",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "UpdatePlaceVersionNotesRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "UpdatePlaceVersionNotesResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe.place:write"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "publish.overwrite-badge-icon",
       "key": "POST /legacy-publish/v1/badges/{badgeId}/icon",
       "method": "POST",
       "server": "apis",
@@ -16049,7 +16153,10 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe"
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "server-management.create-universe-restart",
@@ -16105,7 +16212,49 @@
       "safety": "unsafe"
     },
     {
-      "name": "server-management.filter-options-universe-place-game-servers",
+      "name": "server-management.forecast-universe-restarts",
+      "key": "GET /server-management/v1/universes/{universeId}/restarts:forecast",
+      "operation_id": "Restarts_ForecastRestart",
+      "method": "GET",
+      "server": "apis",
+      "path": "/server-management/v1/universes/{universeId}/restarts:forecast",
+      "summary": "Forecast the impact of restarting game servers for a universe.",
+      "tags": [
+        "Observability"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The universe ID"
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "ForecastRestartResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read"
+    },
+    {
+      "name": "server-management.get-filter-options-universe-place-game-servers",
       "key": "GET /server-management/v1/universes/{universeId}/places/{placeId}/game-servers:filter-options",
       "operation_id": "GameServers_GetFilterOptions",
       "method": "GET",
@@ -16161,91 +16310,10 @@
         }
       },
       "stability": "beta",
-      "safety": "read"
-    },
-    {
-      "name": "server-management.forecast-universe-restarts",
-      "key": "GET /server-management/v1/universes/{universeId}/restarts:forecast",
-      "operation_id": "Restarts_ForecastRestart",
-      "method": "GET",
-      "server": "apis",
-      "path": "/server-management/v1/universes/{universeId}/restarts:forecast",
-      "summary": "Forecast the impact of restarting game servers for a universe.",
-      "tags": [
-        "Observability"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The universe ID"
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "ForecastRestartResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read"
-    },
-    {
-      "name": "server-management.get-universe-restarts",
-      "key": "GET /server-management/v1/universes/{universeId}/restarts",
-      "operation_id": "Restarts_ListRestartStatuses",
-      "method": "GET",
-      "server": "apis",
-      "path": "/server-management/v1/universes/{universeId}/restarts",
-      "summary": "List restart statuses for a universe.",
-      "tags": [
-        "Observability"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The universe ID"
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "ListRestartStatusesResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read"
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "server-management.list-universe-place-version-game-server-logs",
@@ -16453,6 +16521,143 @@
       }
     },
     {
+      "name": "server-management.list-universe-restarts",
+      "key": "GET /server-management/v1/universes/{universeId}/restarts",
+      "operation_id": "Restarts_ListRestartStatuses",
+      "method": "GET",
+      "server": "apis",
+      "path": "/server-management/v1/universes/{universeId}/restarts",
+      "summary": "List restart statuses for a universe.",
+      "tags": [
+        "Observability"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The universe ID"
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "ListRestartStatusesResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "service-efficiency.check-eligibility-group",
+      "key": "GET /service-efficiency-api/v1/eligibility/groups/{groupId}",
+      "operation_id": "ServiceEfficiencyApi_CheckEligibilityForGroup",
+      "method": "GET",
+      "server": "apis",
+      "path": "/service-efficiency-api/v1/eligibility/groups/{groupId}",
+      "summary": "Operation to Check the Eligibility of a Group.",
+      "tags": [
+        "Accounts",
+        "Groups",
+        "Service Efficiency"
+      ],
+      "params": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "Group id."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "CheckEligibilityResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "extended-services:read"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "service-efficiency.check-eligibility-user",
+      "key": "GET /service-efficiency-api/v1/eligibility/users/{userId}",
+      "operation_id": "ServiceEfficiencyApi_CheckEligibilityForUser",
+      "method": "GET",
+      "server": "apis",
+      "path": "/service-efficiency-api/v1/eligibility/users/{userId}",
+      "summary": "Operation to Check the Eligibility of a User.",
+      "tags": [
+        "Accounts",
+        "Service Efficiency",
+        "Users"
+      ],
+      "params": [
+        {
+          "name": "userId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "User id."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "CheckEligibilityResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "extended-services:read"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
       "name": "service-efficiency.create-payment-profiles-user",
       "key": "POST /service-efficiency-api/v1/payment_profiles/users/{userId}",
       "operation_id": "ServiceEfficiencyApi_CreatePaymentProfileForUser",
@@ -16481,114 +16686,6 @@
         "shape": {
           "type": "ref",
           "name": "CreatePaymentProfileResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "extended-services:write"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "unsafe"
-    },
-    {
-      "name": "service-efficiency.create-payments-group",
-      "key": "POST /service-efficiency-api/v1/payments/groups/{groupId}",
-      "operation_id": "ServiceEfficiencyApi_SubmitManualPaymentForGroup",
-      "method": "POST",
-      "server": "apis",
-      "path": "/service-efficiency-api/v1/payments/groups/{groupId}",
-      "summary": "Operation to Submit a Manual Payment for a Group.",
-      "tags": [
-        "Accounts",
-        "Groups",
-        "Service Efficiency"
-      ],
-      "params": [
-        {
-          "name": "groupId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "Group id."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "SubmitManualPaymentRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "SubmitManualPaymentResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "extended-services:write"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "unsafe"
-    },
-    {
-      "name": "service-efficiency.create-payments-user",
-      "key": "POST /service-efficiency-api/v1/payments/users/{userId}",
-      "operation_id": "ServiceEfficiencyApi_SubmitManualPaymentForUser",
-      "method": "POST",
-      "server": "apis",
-      "path": "/service-efficiency-api/v1/payments/users/{userId}",
-      "summary": "Operation to Submit a Manual Payment for a User.",
-      "tags": [
-        "Accounts",
-        "Service Efficiency",
-        "Users"
-      ],
-      "params": [
-        {
-          "name": "userId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "User id."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "SubmitManualPaymentRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "SubmitManualPaymentResponse"
         }
       },
       "auth": {
@@ -17098,92 +17195,6 @@
       "safety": "read"
     },
     {
-      "name": "service-efficiency.get-eligibility-group",
-      "key": "GET /service-efficiency-api/v1/eligibility/groups/{groupId}",
-      "operation_id": "ServiceEfficiencyApi_CheckEligibilityForGroup",
-      "method": "GET",
-      "server": "apis",
-      "path": "/service-efficiency-api/v1/eligibility/groups/{groupId}",
-      "summary": "Operation to Check the Eligibility of a Group.",
-      "tags": [
-        "Accounts",
-        "Groups",
-        "Service Efficiency"
-      ],
-      "params": [
-        {
-          "name": "groupId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "Group id."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "CheckEligibilityResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "extended-services:read"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "read"
-    },
-    {
-      "name": "service-efficiency.get-eligibility-user",
-      "key": "GET /service-efficiency-api/v1/eligibility/users/{userId}",
-      "operation_id": "ServiceEfficiencyApi_CheckEligibilityForUser",
-      "method": "GET",
-      "server": "apis",
-      "path": "/service-efficiency-api/v1/eligibility/users/{userId}",
-      "summary": "Operation to Check the Eligibility of a User.",
-      "tags": [
-        "Accounts",
-        "Service Efficiency",
-        "Users"
-      ],
-      "params": [
-        {
-          "name": "userId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "User id."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "CheckEligibilityResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "extended-services:read"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "read"
-    },
-    {
       "name": "service-efficiency.get-is-allowed",
       "key": "GET /service-efficiency-api/v1/is_allowed",
       "operation_id": "ServiceEfficiencyApi_IsAllowed",
@@ -17268,49 +17279,6 @@
       "safety": "read"
     },
     {
-      "name": "service-efficiency.get-payment-profiles-user",
-      "key": "GET /service-efficiency-api/v1/payment_profiles/users/{userId}",
-      "operation_id": "ServiceEfficiencyApi_ListPaymentProfilesByUser",
-      "method": "GET",
-      "server": "apis",
-      "path": "/service-efficiency-api/v1/payment_profiles/users/{userId}",
-      "summary": "Operation to List Payment Profiles of a User.",
-      "tags": [
-        "Accounts",
-        "Service Efficiency",
-        "Users"
-      ],
-      "params": [
-        {
-          "name": "userId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "User id."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "ListPaymentProfilesResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "extended-services:read"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "read"
-    },
-    {
       "name": "service-efficiency.get-payment-profiles-user-service-efficiency",
       "key": "GET /service-efficiency-api/v1/payment_profiles/users/{userId}/service_efficiency",
       "operation_id": "ServiceEfficiencyApi_GetServiceEfficiencyPaymentMethodForUser",
@@ -17354,67 +17322,13 @@
       "safety": "read"
     },
     {
-      "name": "service-efficiency.set-accounts-group",
-      "key": "PUT /service-efficiency-api/v1/accounts/groups/{groupId}",
-      "operation_id": "ServiceEfficiencyApi_UpdateAccountForGroup",
-      "method": "PUT",
+      "name": "service-efficiency.list-payment-profiles-user",
+      "key": "GET /service-efficiency-api/v1/payment_profiles/users/{userId}",
+      "operation_id": "ServiceEfficiencyApi_ListPaymentProfilesByUser",
+      "method": "GET",
       "server": "apis",
-      "path": "/service-efficiency-api/v1/accounts/groups/{groupId}",
-      "summary": "Operation to Update an Account for a Group.",
-      "tags": [
-        "Accounts",
-        "Groups",
-        "Service Efficiency"
-      ],
-      "params": [
-        {
-          "name": "groupId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "Group id."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "UpdateAccountRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "UpdateAccountResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "extended-services:write"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "idempotent"
-    },
-    {
-      "name": "service-efficiency.set-accounts-user",
-      "key": "PUT /service-efficiency-api/v1/accounts/users/{userId}",
-      "operation_id": "ServiceEfficiencyApi_UpdateAccountForUser",
-      "method": "PUT",
-      "server": "apis",
-      "path": "/service-efficiency-api/v1/accounts/users/{userId}",
-      "summary": "Operation to Update an Account for a User.",
+      "path": "/service-efficiency-api/v1/payment_profiles/users/{userId}",
+      "summary": "Operation to List Payment Profiles of a User.",
       "tags": [
         "Accounts",
         "Service Efficiency",
@@ -17431,35 +17345,27 @@
           "description": "User id."
         }
       ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "UpdateAccountRequest"
-          }
-        }
-      },
       "response": {
         "type": "json",
         "shape": {
           "type": "ref",
-          "name": "UpdateAccountResponse"
+          "name": "ListPaymentProfilesResponse"
         }
       },
       "auth": {
         "apikey": {
           "scopes": [
             {
-              "name": "extended-services:write"
+              "name": "extended-services:read"
             }
           ]
         }
       },
       "stability": "experimental",
-      "safety": "idempotent"
+      "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "service-efficiency.set-payment-profiles-group-service-efficiency",
@@ -17584,6 +17490,234 @@
       "safety": "idempotent"
     },
     {
+      "name": "service-efficiency.submit-payments-group",
+      "key": "POST /service-efficiency-api/v1/payments/groups/{groupId}",
+      "operation_id": "ServiceEfficiencyApi_SubmitManualPaymentForGroup",
+      "method": "POST",
+      "server": "apis",
+      "path": "/service-efficiency-api/v1/payments/groups/{groupId}",
+      "summary": "Operation to Submit a Manual Payment for a Group.",
+      "tags": [
+        "Accounts",
+        "Groups",
+        "Service Efficiency"
+      ],
+      "params": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "Group id."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "SubmitManualPaymentRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "SubmitManualPaymentResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "extended-services:write"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "service-efficiency.submit-payments-user",
+      "key": "POST /service-efficiency-api/v1/payments/users/{userId}",
+      "operation_id": "ServiceEfficiencyApi_SubmitManualPaymentForUser",
+      "method": "POST",
+      "server": "apis",
+      "path": "/service-efficiency-api/v1/payments/users/{userId}",
+      "summary": "Operation to Submit a Manual Payment for a User.",
+      "tags": [
+        "Accounts",
+        "Service Efficiency",
+        "Users"
+      ],
+      "params": [
+        {
+          "name": "userId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "User id."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "SubmitManualPaymentRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "SubmitManualPaymentResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "extended-services:write"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "service-efficiency.update-accounts-group",
+      "key": "PUT /service-efficiency-api/v1/accounts/groups/{groupId}",
+      "operation_id": "ServiceEfficiencyApi_UpdateAccountForGroup",
+      "method": "PUT",
+      "server": "apis",
+      "path": "/service-efficiency-api/v1/accounts/groups/{groupId}",
+      "summary": "Operation to Update an Account for a Group.",
+      "tags": [
+        "Accounts",
+        "Groups",
+        "Service Efficiency"
+      ],
+      "params": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "Group id."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "UpdateAccountRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "UpdateAccountResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "extended-services:write"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "service-efficiency.update-accounts-user",
+      "key": "PUT /service-efficiency-api/v1/accounts/users/{userId}",
+      "operation_id": "ServiceEfficiencyApi_UpdateAccountForUser",
+      "method": "PUT",
+      "server": "apis",
+      "path": "/service-efficiency-api/v1/accounts/users/{userId}",
+      "summary": "Operation to Update an Account for a User.",
+      "tags": [
+        "Accounts",
+        "Service Efficiency",
+        "Users"
+      ],
+      "params": [
+        {
+          "name": "userId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "User id."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "UpdateAccountRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "UpdateAccountResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "extended-services:write"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
       "name": "service-efficiency.update-configurations-universe",
       "key": "PATCH /service-efficiency-api/v1/configurations/universes/{universeId}",
       "operation_id": "ServiceEfficiencyApi_UpdateConsumerConfigurationsByUniverse",
@@ -17673,115 +17807,6 @@
         "type": "json",
         "shape": {
           "type": "string"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe.thumbnail:write",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "unsafe"
-    },
-    {
-      "name": "thumbnail-personalization.create-universe-personalization-update",
-      "key": "POST /thumbnail-personalization-api/v1/universes/{universeId}/personalization/update",
-      "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_UpdateThumbnailPersonalization",
-      "method": "POST",
-      "server": "apis",
-      "path": "/thumbnail-personalization-api/v1/universes/{universeId}/personalization/update",
-      "summary": "Replaces the homepage thumbnails in an active personalization configuration without changing its identifier or existing statistics.",
-      "tags": [
-        "Thumbnail Personalization"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The identifier of the universe that owns the configuration."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "UpdateThumbnailPersonalizationRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "string"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe.thumbnail:write",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "unsafe"
-    },
-    {
-      "name": "thumbnail-personalization.create-universe-thumbnails-upload",
-      "key": "POST /thumbnail-personalization-api/v1/universes/{universeId}/thumbnails/uploads",
-      "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_UploadHomepageThumbnails",
-      "method": "POST",
-      "server": "apis",
-      "path": "/thumbnail-personalization-api/v1/universes/{universeId}/thumbnails/uploads",
-      "summary": "Uploads one or more images to create homepage thumbnails for a universe.",
-      "tags": [
-        "Thumbnail Personalization"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The identifier of the universe that owns the thumbnails."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "multipart",
-          "parts": [
-            {
-              "name": "files",
-              "required": true,
-              "kind": {
-                "type": "file"
-              }
-            }
-          ]
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "UploadThumbnailsResponse"
         }
       },
       "auth": {
@@ -18037,6 +18062,121 @@
         "next_field": "nextCursor",
         "items_field": "personalizedConfigs"
       }
+    },
+    {
+      "name": "thumbnail-personalization.update-universe-personalization",
+      "key": "POST /thumbnail-personalization-api/v1/universes/{universeId}/personalization/update",
+      "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_UpdateThumbnailPersonalization",
+      "method": "POST",
+      "server": "apis",
+      "path": "/thumbnail-personalization-api/v1/universes/{universeId}/personalization/update",
+      "summary": "Replaces the homepage thumbnails in an active personalization configuration without changing its identifier or existing statistics.",
+      "tags": [
+        "Thumbnail Personalization"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The identifier of the universe that owns the configuration."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "UpdateThumbnailPersonalizationRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "string"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe.thumbnail:write",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "thumbnail-personalization.upload-universe-thumbnails",
+      "key": "POST /thumbnail-personalization-api/v1/universes/{universeId}/thumbnails/uploads",
+      "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_UploadHomepageThumbnails",
+      "method": "POST",
+      "server": "apis",
+      "path": "/thumbnail-personalization-api/v1/universes/{universeId}/thumbnails/uploads",
+      "summary": "Uploads one or more images to create homepage thumbnails for a universe.",
+      "tags": [
+        "Thumbnail Personalization"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The identifier of the universe that owns the thumbnails."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "multipart",
+          "parts": [
+            {
+              "name": "files",
+              "required": true,
+              "kind": {
+                "type": "file"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "UploadThumbnailsResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe.thumbnail:write",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "thumbnails.get-assets-thumbnail-3d",

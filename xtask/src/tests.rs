@@ -336,3 +336,20 @@ fn operation_shaped_gets_and_luau_readers_have_completions() {
         "Luau resume readers must wait for a terminal state"
     );
 }
+
+#[test]
+fn semantic_names_match_operation_intent_before_the_first_release() {
+    let (spec, overlay, previous) = inputs();
+    let (r, _) = build::build(build::Input {
+        spec: &spec,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+        overlay: &overlay,
+    })
+    .unwrap();
+    for line in include_str!("../fixtures/name-changes.tsv").lines() {
+        let (old, new) = line.split_once('\t').unwrap();
+        assert!(r.op(new).is_some(), "the operation must describe its intent as {new}");
+        assert!(r.op(old).is_none(), "the misleading pre-release name {old} must disappear");
+    }
+}

@@ -18,6 +18,7 @@ pub struct Patch {
     pub key: String,
     pub note: String,
     pub expect: BTreeMap<String, Value>,
+    pub name: Option<String>,
     pub body: Option<Body>,
     pub response: Option<Payload>,
     pub safety: Option<Safety>,
@@ -36,6 +37,7 @@ impl Overlay {
             };
             let before = serde_json::to_value(&*op).expect("an Op serializes");
             let changes = [
+                ("name", patch.name.is_some()),
                 ("body", patch.body.is_some()),
                 ("response", patch.response.is_some()),
                 ("safety", patch.safety.is_some()),
@@ -60,6 +62,9 @@ impl Overlay {
             if mismatched {
                 errors.push(format!("{}: patch needs a note and matching expect guards", patch.key));
                 continue;
+            }
+            if let Some(name) = &patch.name {
+                op.name = name.clone();
             }
             if let Some(body) = &patch.body {
                 op.body = Some(body.clone());
