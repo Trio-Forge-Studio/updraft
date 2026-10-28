@@ -1,0 +1,505 @@
+[vocabulary.asset-permissions]
+drop = []
+rename = [{ from = "assets-permissions", to = "asset-permissions" }]
+
+[vocabulary.creator-configs]
+drop = ["experimentation", "configs"]
+rename = [{ from = "repository-revisions", to = "revisions" }]
+
+[vocabulary.game-passes]
+drop = ["creator"]
+rename = []
+
+[vocabulary.developer-products]
+drop = ["creator"]
+rename = []
+
+[vocabulary.virtual-events]
+drop = ["game-events"]
+rename = []
+
+[vocabulary.game-internationalization]
+drop = ["games", "language-codes"]
+rename = [{ from = "developer-products", to = "products" }, { from = "game-passes", to = "passes" }, { from = "game-icon", to = "icon" }, { from = "game-thumbnails", to = "thumbnails" }, { from = "name-description", to = "text" }, { from = "supported-languages-automatic-translation-status", to = "translation-status" }, { from = "supported-languages-universe-display-info-automatic-translation-settings", to = "display-translation-settings" }, { from = "supported-languages-image-translation-status", to = "image-translation-status" }]
+
+[vocabulary.localization-tables]
+drop = []
+rename = [{ from = "autolocalizationtable", to = "table" }]
+
+[vocabulary.thumbnail-personalization]
+drop = ["create"]
+rename = [{ from = "thumbnails-uploads-status", to = "uploads-status" }]
+
+[vocabulary.analytics-alert-control-plane]
+drop = []
+rename = [{ from = "alerts-incidents", to = "incidents" }]
+
+[vocabulary.server-management]
+drop = []
+rename = [{ from = "game-servers", to = "servers" }]
+
+[vocabulary.log-attribute]
+drop = []
+rename = [{ from = "universe-regexes", to = "regexes" }]
+
+[vocabulary.asset-delivery]
+drop = []
+rename = [{ from = "asset-id", to = "asset" }]
+
+[vocabulary.universe-performance-raqi]
+drop = ["events", "logging"]
+rename = []
+
+[vocabulary.universes]
+exceptions = [{ name = "universes.get-place-universe", reason = "This lookup returns the owning universe of a place, so the result noun distinguishes the relationship." }]
+
+[[patch]]
+key = "POST /universes/v1/{universeId}/places/{placeId}/versions"
+expect = { body = "absent", response = { type = "text" }, retry = "absent" }
+note = "The spec declares no request body. The endpoint takes the place file as application/octet-stream and answers with JSON despite declaring text/plain."
+body = { required = true, media = { type = "binary", content_type = "application/octet-stream" } }
+response = { type = "json", shape = { type = "object", fields = [{ name = "versionNumber", shape = { type = "integer" } }] } }
+retry = { statuses = [409, "5xx"], attempts = 4, delay_seconds = 60 }
+
+[[patch]]
+key = "GET /asset-delivery-api/v1/assetId/{assetId}"
+expect = { response = { type = "empty" } }
+note = "The spec declares no response body. The endpoint returns JSON whose location is an unauthenticated download URL."
+response = { type = "json", shape = { type = "object", fields = [{ name = "location", shape = { type = "string" } }] } }
+
+[[patch]]
+key = "GET /asset-delivery-api/v1/assetId/{assetId}/version/{versionNumber}"
+expect = { response = { type = "empty" } }
+note = "The spec declares no response body. The endpoint returns JSON whose location is an unauthenticated download URL."
+response = { type = "json", shape = { type = "object", fields = [{ name = "location", shape = { type = "string" } }] } }
+
+[[patch]]
+key = "GET /assets/v1/assets/{assetId}/versions"
+expect = { response = { type = "json", shape = { type = "array", items = { type = "ref", name = "AssetVersion" } } }, pagination = "absent" }
+note = "The spec declares a bare array. The endpoint returns assetVersions with a nextPageToken."
+response = { type = "json", shape = { type = "object", fields = [{ name = "assetVersions", shape = { type = "array", items = { type = "ref", name = "AssetVersion" } } }, { name = "nextPageToken", shape = { type = "string" } }] } }
+pagination = { token_param = "pageToken", size_param = "maxPageSize", next_field = "nextPageToken", items_field = "assetVersions" }
+
+[[patch]]
+key = "POST /cloud/v2/universes/{universe_id}/places/{place_id}/luau-execution-session-tasks"
+expect = { completion = "absent" }
+note = "The task finishes through its state field. updraft polls the task path it returns."
+completion = { type = "state", field = "state", success = ["COMPLETE"], failure = ["FAILED", "CANCELLED"] }
+
+[[patch]]
+key = "POST /cloud/v2/universes/{universe_id}/places/{place_id}/versions/{version_id}/luau-execution-session-tasks"
+expect = { completion = "absent" }
+note = "The task finishes through its state field. updraft polls the task path it returns."
+completion = { type = "state", field = "state", success = ["COMPLETE"], failure = ["FAILED", "CANCELLED"] }
+
+[[patch]]
+key = "POST /toolbox-service/v2/assets:search"
+expect = { safety = "unsafe" }
+note = "A search sent as POST. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /analytics-query-api/v1/universes/{universeId}/metrics"
+expect = { safety = "unsafe" }
+note = "A query sent as POST. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /analytics-query-api/v1/universes/{universeId}/dimension-values"
+expect = { safety = "unsafe" }
+note = "A query sent as POST. Safe to repeat."
+safety = "read"
+
+[[add]]
+name = "api-keys.introspect"
+key = "POST /api-keys/v1/introspect"
+method = "POST"
+server = "apis"
+path = "/api-keys/v1/introspect"
+summary = "Describe an API key: its scopes, owner, and whether it is enabled or expired."
+auth = { bodykey = { field = "apiKey" } }
+stability = "unspecified"
+safety = "read"
+response = { type = "json", shape = { type = "any" } }
+body = { required = true, media = { type = "json", content_type = "application/json", shape = { type = "object", fields = [{ name = "apiKey", required = true, shape = { type = "string" } }] } } }
+patches = ["Missing from the spec. Documented at https://create.roblox.com/docs/cloud/auth/api-keys."]
+
+[[add]]
+name = "universes.get-place-universe"
+key = "GET /universes/v1/places/{placeId}/universe"
+method = "GET"
+server = "apis"
+path = "/universes/v1/places/{placeId}/universe"
+summary = "Get the universe that owns a place."
+auth = "none"
+stability = "unspecified"
+safety = "read"
+params = [{ name = "placeId", in = "path", required = true, kind = { type = "integer" } }]
+response = { type = "json", shape = { type = "object", fields = [{ name = "universeId", shape = { type = "integer" } }] } }
+patches = ["Missing from the spec. A public endpoint that needs no key."]
+
+[[patch]]
+key = "GET /cloud/v2/universes/{universe_id}/places/{place_id}/versions/{version_id}/luau-execution-sessions/{luau_execution_session_id}/tasks/{task_id}"
+expect = { completion = "absent" }
+note = "The task reader has the same terminal states as creation, so GET-only resumes wait by default."
+completion = { type = "state", field = "state", success = ["COMPLETE"], failure = ["FAILED", "CANCELLED"] }
+
+[[patch]]
+key = "GET /ads-management/v1/advertisable-universes"
+expect = { name = "", summary = "List advertisable universes" }
+name = "ads-management.list-advertisable-universes"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /analytics-query-api/v1/universes/{universeId}/dimension-values"
+expect = { name = "", summary = "Queries dimension values for a universe." }
+name = "analytics-query.query-dimension-values"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /analytics-query-api/v1/universes/{universeId}/metrics"
+expect = { name = "", summary = "Queries time series metric data for a universe." }
+name = "analytics-query.query-metrics"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "PATCH /asset-permissions-api/v1/assets/permissions"
+expect = { name = "", summary = "Grant a subject permission to multiple assets. Authorization is required to grant permissions to the subject and asset IDs in the request." }
+name = "asset-permissions.grant"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/publish"
+expect = { name = "", operation_id = "CreatorConfigsPublicApi_PublishDraft" }
+name = "creator-configs.publish-draft"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/revisions/{revisionId}/restore"
+expect = { name = "", operation_id = "CreatorConfigsPublicApi_RestoreRevision" }
+name = "creator-configs.restore-revision"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "DELETE /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}"
+expect = { name = "", operation_id = "PublicExperimentation_DiscardExperiment" }
+name = "creator-configs.discard-experiment"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/revisions"
+expect = { name = "", operation_id = "CreatorConfigsPublicApi_ListRevisions" }
+name = "creator-configs.list-revisions"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments"
+expect = { name = "", operation_id = "PublicExperimentation_ListExperiments" }
+name = "creator-configs.list-experiments"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry"
+expect = { name = "", operation_id = "Entries_SetEntryAsync" }
+name = "data-stores-v1.set-entry"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/increment"
+expect = { name = "", operation_id = "Entries_IncrementEntryAsync" }
+name = "data-stores-v1.increment-entry"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/versions"
+expect = { name = "", operation_id = "Entries_ListEntryVersionsAsync" }
+name = "data-stores-v1.list-entry-versions"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-develop/v1/universes/{universeId}/activate"
+expect = { name = "", summary = "Activates a universes." }
+name = "develop.activate-universe"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-develop/v1/universes/{universeId}/deactivate"
+expect = { name = "", summary = "Deactivates a universe." }
+name = "develop.deactivate-universe"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "DELETE /legacy-develop/v2/teamtest/{placeId}"
+expect = { name = "", summary = "Close a game instance that is being used for team testing" }
+name = "develop.close-teamtest"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "DELETE /legacy-develop/v1/universes/{universeId}/teamcreate/memberships"
+expect = { name = "", summary = "Removes a user from a TeamCreate permissions list." }
+name = "develop.remove-teamcreate-memberships"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /legacy-develop/v1/places/{placeId}/teamcreate/active_session/members"
+expect = { name = "", summary = "List of users in the active Team Create session" }
+name = "develop.list-active-session-members"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/badges/{badgeId}/icons/language-codes/{languageCode}"
+expect = { name = "", summary = "Update a badge's icon" }
+name = "game-internationalization.update-badge-icons"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}"
+expect = { name = "", summary = "Update a developer product's icon" }
+name = "game-internationalization.update-product-icons"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/game-icon/games/{gameId}/language-codes/{languageCode}"
+expect = { name = "", summary = "Update a game's icon" }
+name = "game-internationalization.update-icon"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/game-passes/{gamePassId}/icons/language-codes/{languageCode}"
+expect = { name = "", summary = "Update a game pass's icon" }
+name = "game-internationalization.update-pass-icons"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/alt-text"
+expect = { name = "", summary = "Updates the game thumbnail alt text." }
+name = "game-internationalization.update-thumbnails-alt-text"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/image"
+expect = { name = "", summary = "Uploads the game thumbnail." }
+name = "game-internationalization.upload-thumbnails-image"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/images/order"
+expect = { name = "", summary = "Orders the specified image Ids for the game thumbnails." }
+name = "game-internationalization.order-thumbnails-images"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/name-description/games/translation-history"
+expect = { name = "", summary = "Gets the history for name or description in a provided language." }
+name = "game-internationalization.get-text-translation-history"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "PATCH /legacy-game-internationalization/v1/source-language/games/{gameId}"
+expect = { name = "", summary = "Sets the source language of a game" }
+name = "game-internationalization.set-source-language"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-groups/v1/groups/policies"
+expect = { name = "", summary = "Gets group policy info used for compliance." }
+name = "groups.get-policy"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "PATCH /legacy-groups/v1/groups/{groupId}/status"
+expect = { name = "", summary = "Sets group status" }
+name = "groups.set-status"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-localization-tables/v1/localization-table/tables/{tableId}/entries/translation-history"
+expect = { name = "", summary = "Gets the translation history for each entry passed in." }
+name = "localization-tables.get-entries-translation-history"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "PATCH /legacy-localization-tables/v1/autolocalization/games/{gameId}/settings"
+expect = { name = "", summary = "Sets a game's auto-localization related settings" }
+name = "localization-tables.set-autolocalization-settings"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /log-attribute-http-service/v1/universe-regexes"
+expect = { name = "", operation_id = "LogAttributeService_Find" }
+name = "log-attribute.find-regexes"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "PUT /log-attribute-http-service/v1/universe-regexes/{id}"
+expect = { name = "", operation_id = "LogAttributeService_Update" }
+name = "log-attribute.update-regex"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "PUT /log-attribute-http-service/v1/universe-regexes/{id}/ignore"
+expect = { name = "", operation_id = "LogAttributeService_Ignore" }
+name = "log-attribute.ignore-regex"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "PUT /log-attribute-http-service/v1/universe-regexes/{id}/reorder"
+expect = { name = "", operation_id = "LogAttributeService_Reorder" }
+name = "log-attribute.reorder-regex"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /messaging-service/v1/universes/{universeId}/topics/{topic}"
+expect = { name = "", operation_id = "CrossServerMessaging_Publish" }
+name = "messaging.publish-message"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /place-version-history-api/v1/{placeId}/version/{version}/notes"
+expect = { name = "", operation_id = "PlaceVersion_UpdatePlaceVersionNotes" }
+name = "place-version-history.update-version-note"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /legacy-publish/v1/badges/{badgeId}/icon"
+expect = { name = "", summary = "Overwrites a badge icon with a new one." }
+name = "publish.overwrite-badge-icon"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /server-management/v1/universes/{universeId}/places/{placeId}/game-servers:filter-options"
+expect = { name = "", operation_id = "GameServers_GetFilterOptions" }
+name = "server-management.get-server-filter-options"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /server-management/v1/universes/{universeId}/restarts"
+expect = { name = "", operation_id = "Restarts_ListRestartStatuses" }
+name = "server-management.list-restarts"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /service-efficiency-api/v1/payments/groups/{groupId}"
+expect = { name = "", operation_id = "ServiceEfficiencyApi_SubmitManualPaymentForGroup" }
+name = "service-efficiency.submit-payments-group"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /service-efficiency-api/v1/payments/users/{userId}"
+expect = { name = "", operation_id = "ServiceEfficiencyApi_SubmitManualPaymentForUser" }
+name = "service-efficiency.submit-payments-user"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /service-efficiency-api/v1/eligibility/groups/{groupId}"
+expect = { name = "", operation_id = "ServiceEfficiencyApi_CheckEligibilityForGroup" }
+name = "service-efficiency.check-eligibility-group"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /service-efficiency-api/v1/eligibility/users/{userId}"
+expect = { name = "", operation_id = "ServiceEfficiencyApi_CheckEligibilityForUser" }
+name = "service-efficiency.check-eligibility-user"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "GET /service-efficiency-api/v1/payment_profiles/users/{userId}"
+expect = { name = "", operation_id = "ServiceEfficiencyApi_ListPaymentProfilesByUser" }
+name = "service-efficiency.list-payment-profiles-user"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "PUT /service-efficiency-api/v1/accounts/groups/{groupId}"
+expect = { name = "", operation_id = "ServiceEfficiencyApi_UpdateAccountForGroup" }
+name = "service-efficiency.update-accounts-group"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "PUT /service-efficiency-api/v1/accounts/users/{userId}"
+expect = { name = "", operation_id = "ServiceEfficiencyApi_UpdateAccountForUser" }
+name = "service-efficiency.update-accounts-user"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /thumbnail-personalization-api/v1/universes/{universeId}/personalization/update"
+expect = { name = "", operation_id = "ThumbnailPersonalizationApi.HomepageThumbnail_UpdateThumbnailPersonalization" }
+name = "thumbnail-personalization.update-personalization"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /thumbnail-personalization-api/v1/universes/{universeId}/thumbnails/uploads"
+expect = { name = "", operation_id = "ThumbnailPersonalizationApi.HomepageThumbnail_UploadHomepageThumbnails" }
+name = "thumbnail-personalization.upload-thumbnails"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /analytics-benchmark/v1/universes/{universeId}/benchmarks"
+expect = { name = "", summary = "Returns daily benchmark percentiles for a metric, comparing a universe against other experiences on Roblox." }
+name = "analytics-benchmark.query-benchmarks"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /server-management/v1/universes/{universeId}/restarts"
+expect = { name = "", operation_id = "Restarts_LaunchRestart" }
+name = "server-management.launch-restart"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /analytics-benchmark/v1/universes/{universeId}/benchmarks"
+expect = { safety = "unsafe", summary = "Returns daily benchmark percentiles for a metric, comparing a universe against other experiences on Roblox." }
+note = "This POST only reads data according to its spec summary. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/name-description/games/translation-history"
+expect = { safety = "unsafe", summary = "Gets the history for name or description in a provided language." }
+note = "This POST only reads data according to its spec summary. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /legacy-groups/v1/groups/policies"
+expect = { safety = "unsafe", summary = "Gets group policy info used for compliance." }
+note = "This POST only reads data according to its spec summary. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /legacy-localization-tables/v1/localization-table/tables/{tableId}/entries/translation-history"
+expect = { safety = "unsafe", summary = "Gets the translation history for each entry passed in." }
+note = "This POST only reads data according to its spec summary. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "GET /legacy-localization-tables/v1/localization-table/tables/{assetId}"
+expect = { name = "", summary = "Get table information by the assetId of the table." }
+name = "localization-tables.get-asset-table"
+note = "The table ID and asset ID readers have identical URL shapes but different identifier meanings."
+
+[[patch]]
+key = "POST /toolbox-service/v2/assets:search"
+expect = { name = "", summary = "Search Creator Store Assets" }
+name = "toolbox.search-assets-body"
+note = "This search accepts its filters in a request body. The other search uses query parameters."
+
+[[patch]]
+key = "GET /legacy-followings/v1/users/{userId}/universes"
+expect = { name = "", summary = "Gets all the followings between a user with userId and universes" }
+name = "followings.list-user-universes"
+note = "The summary declares a list even though the response has no pagination token. Version collisions add the v1 suffix."
+
+[[patch]]
+key = "GET /legacy-followings/v2/users/{userId}/universes"
+expect = { name = "", summary = "Gets all universes followed by a user." }
+name = "followings.list-user-universes"
+note = "The summary declares a list even though the response has no pagination token."
+
+[[patch]]
+key = "POST /assets/v1/assets/{assetId}/versions:rollback"
+expect = { name = "", summary = "Rollback an asset to a previous version." }
+name = "assets.rollback-version"
+note = "The collection action restores one version selected in the body, rather than rolling back multiple versions."
+
+[[patch]]
+key = "POST /universes/v1/{universeId}/places/{placeId}/versions"
+expect = { name = "", operation_id = "Places_CreatePlaceVersionApiKey" }
+name = "universes.create-place-version"
+note = "This legacy path has an implicit universe resource and creates a place version, rather than a universe version. Keep the published resource qualifier."
