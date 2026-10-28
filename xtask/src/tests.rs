@@ -511,6 +511,21 @@ fn unknown_cloud_families_are_reported_and_keep_their_names_on_updates() {
 }
 
 #[test]
+fn future_luau_collections_keep_their_resource_nouns() {
+    let (_, _, registry) = inputs();
+    for (method, suffix, expected) in [
+        (Method::Get, "luau-execution-artifacts/{id}", "luau.get-artifact"),
+        (Method::Post, "luau-execution-artifacts", "luau.create-artifact"),
+        (Method::Post, "luau-execution-artifacts/{id}:refresh", "luau.refresh-artifact"),
+    ] {
+        let mut op = registry.op("assets.get-asset").unwrap().clone();
+        op.method = method;
+        op.path = format!("/cloud/v2/universes/{{universe_id}}/{suffix}");
+        assert_eq!(naming::derive(&op), expected);
+    }
+}
+
+#[test]
 fn search_ranks_real_agent_queries() {
     let (_, _, r) = inputs();
     for (query, expected, first) in [

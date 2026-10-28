@@ -110,15 +110,19 @@ pub fn derive(op: &Op) -> String {
         if matches!(below.first(), Some(Word::Param)) {
             below.remove(0);
         }
-        if family.collection.starts_with("luau-execution-") {
-            below.retain(|word| !matches!(word, Word::Noun("tasks")));
-            if family.collection.ends_with("binary-inputs") {
-                below.insert(0, Word::Noun("binary-inputs"));
-            } else {
-                below.insert(0, Word::Noun("tasks"));
-                if op.method == Method::Post && words[..family.at].contains(&Word::Noun("versions")) {
-                    below.insert(0, Word::Noun("version"));
+        if let Some(collection) = family.collection.strip_prefix("luau-execution-") {
+            let resource = collection
+                .strip_prefix("session-task-")
+                .or_else(|| collection.strip_prefix("session-"))
+                .unwrap_or(collection);
+            if collection != "sessions" {
+                below.insert(0, Word::Noun(resource));
+                if words.get(family.at + 1) == Some(&Word::Param) {
+                    below.insert(1, Word::Param);
                 }
+            }
+            if op.method == Method::Post && words[..family.at].contains(&Word::Noun("versions")) {
+                below.insert(0, Word::Noun("version"));
             }
         } else if family.collection == "instances" {
             below.insert(0, Word::Noun("instance"));
