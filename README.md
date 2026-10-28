@@ -61,12 +61,12 @@ updraft describe universes.create-place-version
 Parameters use `name=value`. `assetId`, `asset_id`, and `asset-id` bind the same parameter. Repeat array parameters as `ids=1 ids=2`. Required parameters and value kinds are checked before sending. JSON bodies are checked for syntax, without schema validation.
 
 ```console
-updraft call assets.get-asset assetId=1234567 readMask=assetType,displayName
+updraft call assets.get assetId=1234567 readMask=assetType,displayName
 updraft call GET '/assets/v1/assets/1234567?readMask=displayName'
 updraft call universes.get-place-universe placeId=1818
-updraft call assets.list-asset-versions assetId=1234567 --all --max-items 50
+updraft call assets.list-versions assetId=1234567 --all --max-items 50
 updraft call universes.create-place-version universeId=13058 placeId=1818 versionType=Published --body @build/warehouse.rbxl
-updraft call assets.create-asset --part request=@request.json --part 'fileContent=@sofa.fbx;type=model/fbx' --no-wait
+updraft call assets.create --part request=@request.json --part 'fileContent=@sofa.fbx;type=model/fbx' --no-wait
 ```
 
 `--body` accepts inline JSON, `@file`, or `@-` for stdin. Binary operations accept the file's bytes. Multipart operations use repeated `--part name=value` arguments. Use `@@` when a literal starts with `@`. A process can consume stdin once.
@@ -79,7 +79,7 @@ Long-running calls poll by default. `--no-wait` returns the first reply. A pendi
 
 ```console
 updraft auth check
-updraft auth check --for assets.get-asset
+updraft auth check --for assets.get
 updraft auth profiles
 ```
 

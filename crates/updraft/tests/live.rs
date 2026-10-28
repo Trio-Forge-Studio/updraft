@@ -35,12 +35,7 @@ fn read_only_get_asset() {
     let asset = std::env::var("UPDRAFT_LIVE_ASSET_ID").unwrap_or_else(|_| "6444320592".into());
     let d = success(
         command()
-            .args([
-                "call",
-                "assets.get-asset",
-                &format!("assetId={asset}"),
-                "readMask=assetType,displayName,creationContext",
-            ])
+            .args(["call", "assets.get", &format!("assetId={asset}"), "readMask=assetType,displayName,creationContext"])
             .output()
             .unwrap(),
     );
@@ -72,7 +67,7 @@ fn upload_then_archive_requires_explicit_approval() {
     let created = command()
         .args([
             "call",
-            "assets.create-asset",
+            "assets.create",
             "--no-wait",
             "--part",
             &format!("request={request}"),
@@ -106,7 +101,7 @@ fn upload_then_archive_requires_explicit_approval() {
         receipt_error = receipt_error.take().or(updated);
         let d = success(
             command()
-                .args(["call", "assets.get-asset", &format!("assetId={id}"), "readMask=assetType,creationContext"])
+                .args(["call", "assets.get", &format!("assetId={id}"), "readMask=assetType,creationContext"])
                 .output()
                 .unwrap(),
         );
@@ -128,13 +123,13 @@ fn upload_then_archive_requires_explicit_approval() {
     );
     receipt["assetId"] = json!(id);
     let archive = command()
-        .args(["call", "assets.archive-asset", &format!("assetId={id}")])
+        .args(["call", "assets.archive", &format!("assetId={id}")])
         .output()
         .unwrap_or_else(|_| panic!("cleanup cannot start for asset {id}; archive it manually"));
     let archived = document(&archive);
     assert!(archive.status.success(), "cleanup failed for asset {id}; archive it manually: {archived}");
     let verify = command()
-        .args(["call", "assets.get-asset", &format!("assetId={id}"), "readMask=state"])
+        .args(["call", "assets.get", &format!("assetId={id}"), "readMask=state"])
         .output()
         .unwrap_or_else(|_| panic!("cleanup cannot verify asset {id}; check its archive state manually"));
     let verified = document(&verify);

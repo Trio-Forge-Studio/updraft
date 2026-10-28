@@ -175,7 +175,7 @@ mod tests {
     use updraft_registry::Registry;
     fn op(safety: Safety) -> Op {
         let r: Registry = serde_json::from_str(include_str!("../../../spec/registry.json")).unwrap();
-        let mut op = r.op("assets.get-asset").unwrap().clone();
+        let mut op = r.op("assets.get").unwrap().clone();
         op.safety = safety;
         op
     }

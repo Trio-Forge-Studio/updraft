@@ -578,13 +578,7 @@ fn body_key_introspection_declares_no_required_scopes() {
 fn every_namespace_obeys_its_vocabulary() {
     let (_, overlay, registry) = inputs();
     assert!(naming::consistency(&registry.ops, &overlay.vocabulary).is_empty());
-    for name in [
-        "assets.get-asset",
-        "creator-configs.get-experimentation-experiment",
-        "creator-configs.get-configs",
-        "game-internationalization.get-developer-product-icons",
-        "game-internationalization.get-game-pass-icons",
-    ] {
+    for name in include_str!("../fixtures/rejected-names.txt").lines() {
         let mut op = registry.ops[0].clone();
         op.name = name.into();
         assert!(!naming::consistency(&[op], &overlay.vocabulary).is_empty(), "reject {name}");

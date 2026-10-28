@@ -384,7 +384,7 @@ mod tests {
     #[test]
     fn binding_checks_and_encodes_at_the_boundary() {
         let r = registry();
-        let op = r.op("assets.get-asset").unwrap();
+        let op = r.op("assets.get").unwrap();
         let c =
             Call::new(op, vec![("assetId".into(), "old".into())], vec![("asset-id".into(), "new/value".into())], None)
                 .unwrap();

@@ -118,7 +118,7 @@ const AGENT_GUIDE: &str = "Agent guide:
            call data-stores.get-entry universe_id=1 data_store_id=Profiles entry_id=player
   asset upload <file>       Create once, then poll for the asset ID.
   place publish <file>      Publish with the guarded retry policy.
-  asset download <id>      Download to --out without sending the key to the CDN.
+  asset download <id>       Download to --out without sending the key to the CDN.
   luau run <file>           Create once, then collect results and logs.
   Keys: --profile > UPDRAFT_PROFILE > UPDRAFT_API_KEY > default_profile.
   Exit 0  Success. Read the document.
@@ -182,5 +182,25 @@ mod tests {
         for exit in [0, 2, 3, 4, 5, 6, 7, 8] {
             assert!(help.contains(&format!("Exit {exit} ")), "agent help documents exit {exit}");
         }
+    }
+
+    #[test]
+    fn agent_guide_aligns_flow_descriptions() {
+        let help = Cli::command().render_long_help().to_string();
+        let columns: Vec<_> = help
+            .lines()
+            .filter(|line| {
+                ["asset upload <file>", "place publish <file>", "asset download <id>", "luau run <file>"]
+                    .iter()
+                    .any(|command| line.trim_start().starts_with(command))
+            })
+            .map(|line| {
+                line.find("> ").unwrap()
+                    + 2
+                    + line.split_once("> ").unwrap().1.chars().take_while(|character| *character == ' ').count()
+            })
+            .collect();
+        assert_eq!(columns.len(), 4);
+        assert!(columns.iter().all(|column| *column == columns[0]), "flow descriptions start at {columns:?}");
     }
 }

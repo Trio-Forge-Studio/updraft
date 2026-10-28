@@ -85,7 +85,7 @@ fn echoed_key_and_encoded_forms_never_reach_either_stream() {
                 w.method(GET).path("/assets/v1/assets/42");
                 t.status(status).body(&body);
             });
-            let out = command(&server.base_url()).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+            let out = command(&server.base_url()).args(["call", "assets.get", "assetId=42"]).output().unwrap();
             let combined = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
             for form in [KEY, &encoded, &mixed, &unicode, &slash] {
                 assert!(!combined.contains(form), "secret form must be redacted for HTTP {status}");
@@ -117,7 +117,7 @@ fn error_urls_keep_the_host_when_the_path_contains_an_at_sign() {
     server.mock(|_, t| {
         t.status(400).json_body(json!({"url":"https://cdn.test/folder/@asset/file?signature=private"}));
     });
-    let out = command(&server.base_url()).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+    let out = command(&server.base_url()).args(["call", "assets.get", "assetId=42"]).output().unwrap();
     assert_eq!(document(&out)["error"]["detail"]["url"], "https://cdn.test/folder/@asset/file");
 }
 
@@ -129,7 +129,7 @@ fn named_calls_and_url_calls_bind_folded_parameters() {
         t.json_body(json!({"displayName":"Sofa"}));
     });
     for args in [
-        vec!["call", "assets.get-asset", "asset-id=42", "read_mask=displayName"],
+        vec!["call", "assets.get", "asset-id=42", "read_mask=displayName"],
         vec!["call", "GET", "/assets/v1/assets/42?readMask=displayName"],
     ] {
         let out = command(&server.base_url()).args(args).output().unwrap();
@@ -145,12 +145,12 @@ fn invalid_calls_fail_before_sending() {
         t.status(500);
     });
     for args in [
-        vec!["call", "assets.get-asset"],
-        vec!["call", "assets.get-asset", "assetId=42", "invented=5"],
+        vec!["call", "assets.get"],
+        vec!["call", "assets.get", "assetId=42", "invented=5"],
         vec!["call", "universes.create-place-version", "universeId=nope", "placeId=2", "--body", "x"],
-        vec!["call", "assets.get-asset", "assetId=42", "--body", "{}"],
+        vec!["call", "assets.get", "assetId=42", "--body", "{}"],
         vec!["call", "luau.create-task", "universe_id=1", "place_id=2", "--body", "{"],
-        vec!["call", "assets.get-asset", "assetId=42", "--all"],
+        vec!["call", "assets.get", "assetId=42", "--all"],
     ] {
         let out = command(&server.base_url()).args(args).output().unwrap();
         assert_eq!(code(&out), 2, "invalid call is a usage error");
@@ -178,7 +178,7 @@ fn public_operation_sends_no_key_and_needs_no_config() {
 fn auth_check_posts_key_and_flattens_measured_scope_shape() {
     let server = MockServer::start();
     let m=server.mock(|w,t|{w.method(POST).path("/api-keys/v1/introspect").json_body(json!({"apiKey":KEY})).header_missing("x-api-key");t.json_body(json!({"name":"assets-key","enabled":true,"expired":false,"scopes":[{"name":"asset","operations":["read","write"],"groupIds":["35"],"userIds":[]}]}));});
-    let out = command(&server.base_url()).args(["auth", "check", "--for", "assets.get-asset"]).output().unwrap();
+    let out = command(&server.base_url()).args(["auth", "check", "--for", "assets.get"]).output().unwrap();
     assert_eq!(code(&out), 0);
     assert_eq!(document(&out)["scopes"], json!(["asset:read", "asset:write"]));
     m.assert_calls(1);
@@ -195,7 +195,7 @@ fn explicit_missing_or_empty_profile_does_not_fall_through() {
         let out = command(&server.base_url())
             .env("UPDRAFT_CONFIG", config.path())
             .env("UPDRAFT_TEST_EMPTY", "")
-            .args(["--profile", name, "call", "assets.get-asset", "assetId=42"])
+            .args(["--profile", name, "call", "assets.get", "assetId=42"])
             .output()
             .unwrap();
         assert_eq!(code(&out), 3);
@@ -219,7 +219,7 @@ fn auth_rejection_never_tries_another_profile() {
     let out = command(&server.base_url())
         .env("UPDRAFT_CONFIG", config.path())
         .env("UPDRAFT_OTHER_TEST_KEY", "another-key")
-        .args(["--profile", "a", "call", "assets.get-asset", "assetId=42"])
+        .args(["--profile", "a", "call", "assets.get", "assetId=42"])
         .output()
         .unwrap();
     assert_eq!(code(&out), 3);
@@ -237,10 +237,8 @@ fn pagination_preserves_page_shape_and_terminal_token() {
         w.path("/assets/v1/assets/42/versions").query_param("pageToken", "two");
         t.json_body(json!({"assetVersions":[{"id":2}],"nextPageToken":""}));
     });
-    let out = command(&server.base_url())
-        .args(["call", "assets.list-asset-versions", "assetId=42", "--all"])
-        .output()
-        .unwrap();
+    let out =
+        command(&server.base_url()).args(["call", "assets.list-versions", "assetId=42", "--all"]).output().unwrap();
     assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stdout));
     assert_eq!(document(&out)["assetVersions"].as_array().unwrap().len(), 2);
     first.assert_calls(1);
@@ -331,7 +329,7 @@ fn invalid_origin_never_sends_a_request() {
         "http://user:password@127.0.0.1:1",
         "file:///private",
     ] {
-        let out = command(origin).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+        let out = command(origin).args(["call", "assets.get", "assetId=42"]).output().unwrap();
         assert_eq!(code(&out), 2);
         assert_eq!(document(&out)["error"]["kind"], "usage");
     }
@@ -344,7 +342,7 @@ fn successful_url_payloads_are_preserved() {
         w.path("/assets/v1/assets/42");
         t.json_body(json!({"url":url}));
     });
-    let out = command(&server.base_url()).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+    let out = command(&server.base_url()).args(["call", "assets.get", "assetId=42"]).output().unwrap();
     assert_eq!(code(&out), 0);
     assert_eq!(document(&out)["url"], url);
 }
@@ -360,7 +358,7 @@ fn max_items_preserves_default_page_size_and_bounds_the_last_page() {
         t.json_body(json!({"assetVersions":[4,5],"nextPageToken":"rest"}));
     });
     let out = command(&server.base_url())
-        .args(["call", "assets.list-asset-versions", "assetId=42", "--all", "--max-items", "5"])
+        .args(["call", "assets.list-versions", "assetId=42", "--all", "--max-items", "5"])
         .output()
         .unwrap();
     assert_eq!(code(&out), 0, "{}", document(&out));
@@ -381,7 +379,7 @@ fn an_overfull_default_page_is_refetched_with_a_safe_size() {
         t.json_body(json!({"assetVersions":[1,2],"nextPageToken":"after-two"}));
     });
     let out = command(&server.base_url())
-        .args(["call", "assets.list-asset-versions", "assetId=42", "--all", "--max-items", "2"])
+        .args(["call", "assets.list-versions", "assetId=42", "--all", "--max-items", "2"])
         .output()
         .unwrap();
     assert_eq!(code(&out), 0, "{}", document(&out));
@@ -394,7 +392,7 @@ fn an_overfull_default_page_is_refetched_with_a_safe_size() {
 #[test]
 fn empty_success_bodies_are_not_retried_for_any_declared_payload() {
     for (method, path, name, pairs) in [
-        (POST, "/assets/v1/assets/42:archive", "assets.archive-asset", vec!["assetId=42"]),
+        (POST, "/assets/v1/assets/42:archive", "assets.archive", vec!["assetId=42"]),
         (
             httpmock::Method::DELETE,
             "/cloud/v2/universes/1/data-stores/store/entries/entry",
@@ -429,10 +427,8 @@ fn generic_call_rejects_the_removed_output_flag() {
     let m = server.mock(|_, t| {
         t.json_body(json!({}));
     });
-    let out = command(&server.base_url())
-        .args(["call", "assets.get-asset", "assetId=42", "--out", "unused"])
-        .output()
-        .unwrap();
+    let out =
+        command(&server.base_url()).args(["call", "assets.get", "assetId=42", "--out", "unused"]).output().unwrap();
     assert_eq!(code(&out), 2, "only the asset download flow has an output file");
     m.assert_calls(0);
 }
@@ -466,7 +462,7 @@ fn auth_failures_share_scope_and_profile_metadata() {
         if missing {
             cmd.env_remove("UPDRAFT_API_KEY");
         }
-        let out = cmd.args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+        let out = cmd.args(["call", "assets.get", "assetId=42"]).output().unwrap();
         let error = &document(&out)["error"];
         assert_eq!(code(&out), 3);
         assert_eq!(error["scopeMetadata"], "declared");
@@ -485,7 +481,7 @@ fn auth_failures_share_scope_and_profile_metadata() {
 #[test]
 fn excessive_retry_after_stops_without_waiting_or_retrying() {
     for (name, pairs, status, expected) in [
-        ("assets.get-asset", vec!["assetId=42"], 429, 7),
+        ("assets.get", vec!["assetId=42"], 429, 7),
         ("luau.create-task", vec!["universe_id=1", "place_id=2", "--body", "{}"], 503, 5),
     ] {
         let server = MockServer::start();
@@ -511,7 +507,7 @@ fn max_pages_stops_with_a_continuation_token() {
         t.json_body(json!({"assetVersions":[2],"nextPageToken":"three"}));
     });
     let out = command(&server.base_url())
-        .args(["call", "assets.list-asset-versions", "assetId=42", "--all", "--max-pages", "2"])
+        .args(["call", "assets.list-versions", "assetId=42", "--all", "--max-pages", "2"])
         .output()
         .unwrap();
     assert_eq!(code(&out), 0, "{}", document(&out));
@@ -528,7 +524,7 @@ fn an_unresizable_overfull_page_is_a_usage_error() {
         t.json_body(json!({"assetVersions":[1,2],"nextPageToken":"next"}));
     });
     let out = command(&server.base_url())
-        .args(["call", "assets.list-asset-versions", "assetId=42", "maxPageSize=1", "--all", "--max-items", "1"])
+        .args(["call", "assets.list-versions", "assetId=42", "maxPageSize=1", "--all", "--max-items", "1"])
         .output()
         .unwrap();
     assert_eq!(code(&out), 2, "a smaller item cap cannot silently drop records");
@@ -542,7 +538,7 @@ fn retry_after_beyond_integer_range_stops_and_reports_the_server_value() {
     let m = server.mock(|_, t| {
         t.status(429).header("retry-after", value);
     });
-    let out = command(&server.base_url()).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+    let out = command(&server.base_url()).args(["call", "assets.get", "assetId=42"]).output().unwrap();
     assert_eq!(code(&out), 7);
     assert_eq!(document(&out)["error"]["retryAfter"], value);
     m.assert_calls(1);

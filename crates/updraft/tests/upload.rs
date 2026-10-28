@@ -523,8 +523,7 @@ fn pagination_defaults_to_one_hundred_pages() {
     let server = Server::new(
         (0..101).map(|n| Response::json(json!({"assetVersions":[n],"nextPageToken":format!("page-{}",n+1)}))).collect(),
     );
-    let out =
-        command(&server.origin).args(["call", "assets.list-asset-versions", "assetId=42", "--all"]).output().unwrap();
+    let out = command(&server.origin).args(["call", "assets.list-versions", "assetId=42", "--all"]).output().unwrap();
     assert_eq!(code(&out), 0, "{}", document(&out));
     assert_eq!(document(&out)["assetVersions"].as_array().unwrap().len(), 100);
     assert_eq!(document(&out)["nextPageToken"], "page-100");
@@ -662,8 +661,8 @@ fn accepted_write_with_a_closed_stdout_keeps_an_unsafe_outcome_code() {
         command.stdout(writer).stderr(std::process::Stdio::piped()).output().unwrap()
     }
     for (reply, args, expected, requests) in [
-        (Response::json(json!({})), vec!["call", "assets.archive-asset", "assetId=42"], 5, 1),
-        (Response::Body(503, "uncertain".into()), vec!["call", "assets.archive-asset", "assetId=42"], 5, 1),
+        (Response::json(json!({})), vec!["call", "assets.archive", "assetId=42"], 5, 1),
+        (Response::Body(503, "uncertain".into()), vec!["call", "assets.archive", "assetId=42"], 5, 1),
         (Response::json(json!({})), vec!["--deadline", "0", "asset", "upload", "--resume", "x"], 8, 0),
     ] {
         let server = Server::new(vec![reply]);
@@ -761,7 +760,7 @@ fn every_percent_encoded_key_byte_is_redacted_in_both_cases() {
     let encoded: String = KEY.bytes().map(|b| format!("%{b:02X}")).collect();
     for body in [encoded.clone(), encoded.to_ascii_lowercase()] {
         let server = Server::new(vec![Response::Body(400, body)]);
-        let out = command(&server.origin).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+        let out = command(&server.origin).args(["call", "assets.get", "assetId=42"]).output().unwrap();
         assert_eq!(code(&out), 4);
         assert_eq!(document(&out)["error"]["detail"], "<redacted>", "encoded letters are secret too");
     }
