@@ -19,16 +19,23 @@ jobs:
       - run: mkdir -p build
       - run: cargo xtask spec update > build/spec-update.json
       - run: cargo xtask spec check
-      - run: cargo test --workspace --locked
+      - name: Test the updated spec
+        id: tests
+        continue-on-error: true
+        run: cargo test --workspace --locked
       - name: Write the operation diff
         shell: python
+        env:
+          UPDRAFT_TEST_RESULT: ${{ steps.tests.outcome }}
         run: |
           import json
+          import os
           from pathlib import Path
           update = json.loads(Path("build/spec-update.json").read_text())
           registry = json.loads(Path("spec/registry.json").read_text())
           commit = registry["source"]["commit"]
           lines = [f"Updates the Roblox Open Cloud spec to [{commit}](https://github.com/Roblox/creator-docs/commit/{commit}).", ""]
+          lines.extend([f"Updated-spec tests {os.environ.get('UPDRAFT_TEST_RESULT', 'not run') }.", ""])
           for title, field in [("Added", "added"), ("Removed", "removed"), ("Changed", "changed")]:
               lines.extend([f"## {title}", ""])
               entries = update["diff"][field]
@@ -52,3 +59,6 @@ jobs:
           add-paths: |
             spec/openapi.json
             spec/registry.json
+      - name: Report failed verification after opening the update PR
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
