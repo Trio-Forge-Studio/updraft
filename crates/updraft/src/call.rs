@@ -165,6 +165,14 @@ impl<'r> Call<'r> {
         let token = self.values.iter().find(|(k, _)| k == &p.token_param).map_or("", |(_, v)| v.as_str());
         self.next_page(token, Some(size))
     }
+    pub fn page_size(&self) -> Option<usize> {
+        let name = self.op.pagination.as_ref()?.size_param.as_ref()?;
+        self.values
+            .iter()
+            .find(|(key, _)| key == name)
+            .and_then(|(_, value)| value.parse().ok())
+            .filter(|size| *size > 0)
+    }
     pub fn op(&self) -> &'r Op {
         self.op
     }
@@ -243,7 +251,7 @@ impl<'r> Call<'r> {
             pairs.push((p.token_param.clone(), token.into()));
         }
         if let (Some(name), Some(size)) = (&p.size_param, size) {
-            let original = self.values.iter().find(|(k, _)| k == name).and_then(|(_, v)| v.parse::<usize>().ok());
+            let original = self.page_size();
             pairs.push((name.clone(), size.min(original.unwrap_or(size)).to_string()));
         }
         Self::new(self.op, vec![], pairs, self.body.clone())

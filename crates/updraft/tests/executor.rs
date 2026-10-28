@@ -86,7 +86,9 @@ fn echoed_key_and_encoded_forms_never_reach_either_stream() {
         let combined = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
         assert!(!combined.contains(KEY), "exact key is redacted for HTTP {status}");
         assert!(!combined.contains(&encoded), "encoded key is redacted for HTTP {status}");
-        assert!(!combined.contains("signature=private"), "signed query is stripped");
+        if status != 200 {
+            assert!(!combined.contains("signature=private"), "signed queries are stripped from errors");
+        }
         document(&out);
     }
 }
@@ -314,4 +316,58 @@ fn invalid_origin_never_sends_a_request() {
         assert_eq!(code(&out), 2);
         assert_eq!(document(&out)["error"]["kind"], "usage");
     }
+}
+#[test]
+fn successful_url_payloads_are_preserved() {
+    let server = MockServer::start();
+    let url = "https://example.test/path?page=2#section";
+    server.mock(|w, t| {
+        w.path("/assets/v1/assets/42");
+        t.json_body(json!({"url":url}));
+    });
+    let out = command(&server.base_url()).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+    assert_eq!(code(&out), 0);
+    assert_eq!(document(&out)["url"], url);
+}
+#[test]
+fn max_items_preserves_default_page_size_and_bounds_the_last_page() {
+    let server = MockServer::start();
+    let first = server.mock(|w, t| {
+        w.path("/assets/v1/assets/42/versions").query_param_missing("pageToken").query_param_missing("maxPageSize");
+        t.json_body(json!({"assetVersions":[1,2,3],"nextPageToken":"next"}));
+    });
+    let last = server.mock(|w, t| {
+        w.path("/assets/v1/assets/42/versions").query_param("pageToken", "next").query_param("maxPageSize", "2");
+        t.json_body(json!({"assetVersions":[4,5],"nextPageToken":"rest"}));
+    });
+    let out = command(&server.base_url())
+        .args(["call", "assets.list-asset-versions", "assetId=42", "--all", "--max-items", "5"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 0, "{}", document(&out));
+    assert_eq!(document(&out)["assetVersions"], json!([1, 2, 3, 4, 5]));
+    assert_eq!(document(&out)["nextPageToken"], "rest");
+    first.assert_calls(1);
+    last.assert_calls(1);
+}
+#[test]
+fn an_overfull_default_page_is_refetched_with_a_safe_size() {
+    let server = MockServer::start();
+    let first = server.mock(|w, t| {
+        w.path("/assets/v1/assets/42/versions").query_param_missing("maxPageSize");
+        t.json_body(json!({"assetVersions":[1,2,3],"nextPageToken":"after-three"}));
+    });
+    let resized = server.mock(|w, t| {
+        w.path("/assets/v1/assets/42/versions").query_param("maxPageSize", "2");
+        t.json_body(json!({"assetVersions":[1,2],"nextPageToken":"after-two"}));
+    });
+    let out = command(&server.base_url())
+        .args(["call", "assets.list-asset-versions", "assetId=42", "--all", "--max-items", "2"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 0, "{}", document(&out));
+    assert_eq!(document(&out)["assetVersions"], json!([1, 2]));
+    assert_eq!(document(&out)["nextPageToken"], "after-two");
+    first.assert_calls(1);
+    resized.assert_calls(1);
 }

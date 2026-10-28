@@ -33,6 +33,7 @@ impl Failure {
 }
 
 pub enum Attempt {
+    PageOverflow { can_resize: bool },
     Redirect(String),
     Response { status: u16, retry_after: Option<u32>, body: Vec<u8> },
     Transport { sent: bool, message: String },
@@ -52,6 +53,19 @@ pub enum Verdict {
 pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
     let unsafe_write = op.safety == Safety::Unsafe;
     let (failure, retryable, uncertain, retry_after) = match attempt {
+        Attempt::PageOverflow { can_resize } => {
+            if unsafe_write {
+                return Verdict::Fail(Failure::unknown(
+                    "the page exceeds the requested limit; the request will not be repeated",
+                ));
+            }
+            if can_resize && history.attempts == 0 {
+                return Verdict::Retry { after_seconds: 0, history: History { attempts: 1, uncertain: false } };
+            }
+            return Verdict::Fail(Failure::unavailable(
+                "the page cannot fit the requested item limit; use a smaller page size or omit --max-items",
+            ));
+        }
         Attempt::Redirect(location) => return Verdict::Redirect(location),
         Attempt::Response { status, retry_after, body } => {
             if (200..300).contains(&status) {
@@ -124,6 +138,15 @@ mod tests {
         assert!(
             matches!(judge(&op(Safety::Read),Attempt::Redirect("/next".into()),History::default()),Verdict::Redirect(location) if location=="/next")
         );
+    }
+    #[test]
+    fn page_overflow_row() {
+        assert!(matches!(
+            judge(&op(Safety::Read), Attempt::PageOverflow { can_resize: true }, History::default()),
+            Verdict::Retry { after_seconds: 0, .. }
+        ));
+        assert_eq!(code(judge(&op(Safety::Unsafe), Attempt::PageOverflow { can_resize: true }, History::default())), 5);
+        assert_eq!(code(judge(&op(Safety::Read), Attempt::PageOverflow { can_resize: false }, History::default())), 7);
     }
     #[test]
     fn auth_row() {

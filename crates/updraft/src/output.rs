@@ -36,24 +36,24 @@ impl Output {
         self.secrets.push(form[1..].into());
         self.secrets.sort_by_key(|s| std::cmp::Reverse(s.len()));
     }
-    pub fn document(&self, value: &Value) -> std::io::Result<()> {
-        fn clean(output: &Output, value: &Value) -> Value {
+    pub fn document(&self, value: &Value, error: bool) -> std::io::Result<()> {
+        fn clean(output: &Output, value: &Value, error: bool) -> Value {
             match value {
-                Value::String(s) => Value::String(output.redact(s)),
-                Value::Array(a) => Value::Array(a.iter().map(|v| clean(output, v)).collect()),
+                Value::String(s) => Value::String(if error { output.redact_error(s) } else { output.redact(s) }),
+                Value::Array(a) => Value::Array(a.iter().map(|v| clean(output, v, error)).collect()),
                 Value::Object(o) => {
-                    Value::Object(o.iter().map(|(k, v)| (output.redact(k), clean(output, v))).collect())
+                    Value::Object(o.iter().map(|(k, v)| (output.redact(k), clean(output, v, error))).collect())
                 }
                 v => v.clone(),
             }
         }
-        writeln!(std::io::stdout().lock(), "{}", clean(self, value))
+        writeln!(std::io::stdout().lock(), "{}", clean(self, value, error))
     }
     pub fn text(&self, text: &str) -> std::io::Result<()> {
         write!(std::io::stdout().lock(), "{}", self.redact(text))
     }
     pub fn note(&self, line: &str) {
-        let _ = writeln!(std::io::stderr().lock(), "{}", self.redact(line));
+        let _ = writeln!(std::io::stderr().lock(), "{}", self.redact_error(line));
     }
     pub fn trace(&self, line: &str) {
         if self.verbose {
@@ -61,10 +61,13 @@ impl Output {
         }
     }
     pub fn redact(&self, text: &str) -> String {
-        let mut text = self.secrets.iter().fold(text.to_owned(), |text, secret| text.replace(secret, "<redacted>"));
+        self.secrets.iter().fold(text.to_owned(), |text, secret| text.replace(secret, "<redacted>"))
+    }
+    fn redact_error(&self, text: &str) -> String {
+        let mut text = self.redact(text);
         for scheme in ["https://", "http://"] {
             let mut start = 0;
-            while let Some(at) = text[start..].find(scheme) {
+            while let Some(at) = text[start..].to_ascii_lowercase().find(scheme) {
                 let at = start + at;
                 let end = text[at..]
                     .find(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>'))
@@ -93,6 +96,6 @@ mod tests {
         assert_eq!(output.redact("Key\"\\+/="), "<redacted>");
         assert_eq!(output.redact("Key\\\"\\\\+/="), "<redacted>");
         assert_eq!(output.redact("Key%22%5C%2B%2F%3D"), "<redacted>");
-        assert_eq!(output.redact("https://user:pass@cdn.test/file?signature=private"), "https://cdn.test/file");
+        assert_eq!(output.redact_error("https://user:pass@cdn.test/file?signature=private"), "https://cdn.test/file");
     }
 }

@@ -186,6 +186,7 @@ impl<'a> Executor<'a> {
                 Attempt::Response { status, .. } => format!("HTTP {status}"),
                 Attempt::Transport { .. } => "request failed".into(),
                 Attempt::Redirect(_) => "redirect".into(),
+                Attempt::PageOverflow { .. } => "page exceeds limit".into(),
             };
             match judge(op, attempt, history) {
                 Verdict::Redirect(location) => return Ok(Reply::Redirect(location)),
@@ -235,33 +236,54 @@ impl<'a> Executor<'a> {
         if max_items == Some(0) {
             return Err(Failure::usage("--max-items must be positive"));
         }
-        let mut call = if let Some(limit) = max_items { call.limit_page(limit)? } else { call };
+        let mut call = if let Some(limit) = max_items.filter(|_| call.page_size().is_some()) {
+            call.limit_page(limit)?
+        } else {
+            call
+        };
         let mut result = Value::Null;
         let mut items = vec![];
         let mut tokens = BTreeSet::new();
+        let mut resize_history = History::default();
         loop {
             let page = self.send(&call)?.json()?;
             let page_items = page[&p.items_field]
                 .as_array()
                 .ok_or_else(|| Failure::unavailable(format!("page has no {} array", p.items_field)))?;
+            if let Some(remaining) =
+                max_items.map(|limit| limit - items.len()).filter(|remaining| page_items.len() > *remaining)
+            {
+                let can_resize = p.size_param.is_some() && call.page_size().is_none_or(|size| size > remaining);
+                match judge(call.op(), Attempt::PageOverflow { can_resize }, resize_history) {
+                    Verdict::Retry { after_seconds, history } => {
+                        resize_history = history;
+                        std::thread::sleep(
+                            self.timing.retry_delay.unwrap_or(Duration::from_secs(after_seconds.into())),
+                        );
+                        call = call.limit_page(remaining)?;
+                        continue;
+                    }
+                    Verdict::Fail(failure) => return Err(failure.with("detail", page)),
+                    _ => unreachable!("page overflow returns retry or failure"),
+                }
+            }
             items.extend(page_items.iter().cloned());
             if result.is_null() {
                 result = page.clone();
             }
             let token = page[&p.next_field].as_str().unwrap_or_default();
             result[&p.next_field] = json!(token);
-            if max_items.is_some_and(|limit| items.len() > limit) {
-                return Err(Failure::unavailable(
-                    "server exceeded the requested page size; use a smaller page size or omit --max-items",
-                ));
-            }
             if token.is_empty() || max_items.is_some_and(|limit| items.len() >= limit) {
                 break;
             }
             if !tokens.insert(token.to_owned()) {
                 return Err(Failure::unavailable("server repeated a pagination token"));
             }
-            call = call.next_page(token, max_items.map(|limit| limit - items.len()))?;
+            call = call.next_page(
+                token,
+                max_items.map(|limit| limit - items.len()).filter(|remaining| *remaining < page_items.len()),
+            )?;
+            resize_history = History::default();
         }
         result[&p.items_field] = json!(items);
         Ok(result)
@@ -331,7 +353,7 @@ impl<'a> Executor<'a> {
             value = match self.send(&call) {
                 Ok(reply) => reply.json()?,
                 Err(_) if Instant::now() >= until => return Err(pending(value)),
-                Err(failure) => return Err(failure),
+                Err(failure) => return Err(failure.with("resume", json!(resume)).with("detail", value)),
             };
         }
     }

@@ -31,7 +31,7 @@ fn main() -> ExitCode {
                 return if output.text(&error.to_string()).is_ok() { ExitCode::SUCCESS } else { ExitCode::from(7) };
             }
             let failure = Failure::usage(error.kind().to_string());
-            let _ = output.document(&failure.document());
+            let _ = output.document(&failure.document(), true);
             return ExitCode::from(2);
         }
     };
@@ -40,7 +40,7 @@ fn main() -> ExitCode {
         Ok(v) => (0, v),
         Err(f) => (f.code, f.document()),
     };
-    if output.document(&document).is_err() {
+    if output.document(&document, code != 0).is_err() {
         return ExitCode::from(7);
     }
     ExitCode::from(code)
