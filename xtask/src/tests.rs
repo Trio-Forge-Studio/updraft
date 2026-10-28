@@ -247,3 +247,41 @@ fn every_concrete_url_resolves_except_the_documented_localization_pair() {
     assert_eq!(ambiguous, 2);
     assert_eq!(resolved, r.ops.len() - 2);
 }
+
+#[test]
+fn overlay_add_cannot_replace_an_upstream_key() {
+    let (mut spec, overlay, previous) = inputs();
+    spec["paths"]["/api-keys/v1/introspect"] = json!({"post":{"security":[{"roblox-api-key":[]}],"responses":{}}});
+    let errors = build::build(build::Input {
+        spec: &spec,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+        overlay: &overlay,
+    })
+    .unwrap_err();
+    assert!(
+        errors.iter().any(
+            |e| e.contains("upstream now has POST /api-keys/v1/introspect; turn the add into a patch or delete it")
+        ),
+        "upstream additions require an explicit overlay decision: {errors:?}"
+    );
+}
+
+#[test]
+fn duplicate_overlay_keys_fail_the_build() {
+    let (spec, mut overlay, previous) = inputs();
+    let mut duplicate = overlay.add[0].clone();
+    duplicate.name = "api-keys.another-name".into();
+    overlay.add.push(duplicate);
+    let errors = build::build(build::Input {
+        spec: &spec,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+        overlay: &overlay,
+    })
+    .unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.contains("duplicate key POST /api-keys/v1/introspect")),
+        "distinct names cannot hide a duplicate identity: {errors:?}"
+    );
+}

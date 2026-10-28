@@ -64,8 +64,17 @@ pub fn build(input: Input<'_>) -> Result<(Registry, Report), Vec<String>> {
 
     let mut errors = Vec::new();
     for op in &input.overlay.add {
+        if spec["paths"][&op.path].get(method_label(op.method).to_ascii_lowercase()).is_some() {
+            errors.push(format!("upstream now has {}; turn the add into a patch or delete it", op.key));
+        }
         drafts.push(op.clone());
         report.added += 1;
+    }
+    let mut keys = BTreeSet::new();
+    for op in &drafts {
+        if !keys.insert(&op.key) {
+            errors.push(format!("duplicate key {}", op.key));
+        }
     }
     errors.extend(input.overlay.apply(&mut drafts));
     report.patched = drafts.iter().filter(|op| !op.patches.is_empty()).count();
