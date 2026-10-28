@@ -204,16 +204,16 @@ The v1 `followings` and `develop` APIs also have v2 operations. Their v1 command
 |---|---|
 | operations in spec / API-key / registry | 994 / 299 / 301 (2 added) |
 | with / without `operationId` | 191 / 108 |
-| derived names that collide | 3 groups, 6 operations |
+| final generated collision suffixes | 0, verified by a fresh registry build |
 | templates ambiguous for URL matching | 1 pair (`localization-table/tables/{assetId}` vs `{tableId}`) |
 | detected paginated / long-running | 38 / 18 (after overlay) |
 | reachable schemas | 527 of 1412 |
 | registry size, compact / pretty / gzip | 597 KB / 970 KB / 89 KB |
 | build time | 0.23 s |
 | embedded registry parse, release | 3.8 ms |
-| name length median / max | 44 / 119 chars |
+| resource name length median / max | 35 / 70 chars across all 301 operations |
 
-The three collisions are `followings.get-user-universes` (v1 and v2), `toolbox.search-assets` (deprecated GET and POST of the same verb), and the localization tables pair. The startup and size numbers are measured on the sketch. The binary is 2.2 MB with todo bodies, so the shipped size is a guess of 3 to 4 MB.
+The resource naming rule separates the v1 and v2 followings APIs. Guarded names distinguish query-based `toolbox.search-assets` from `toolbox.search-assets-body`, and `localization-tables.get-table` from `localization-tables.get-asset-table`. The localization URL templates still require an explicit operation name when their shapes tie. No action exceeds four words. The name lengths come from the rebuilt registry; the startup and size numbers remain measurements of the original sketch. The binary is 2.2 MB with todo bodies, so the shipped size is a guess of 3 to 4 MB.
 
 **Release and CI.** `ci.yml` runs fmt, clippy with `-D warnings`, `cargo xtask spec check` and `cargo test` on Ubuntu and Windows, because both developers are on Windows and paths and config directories differ. `release.yml` triggers on `v*`, checks the tag equals the Cargo version, and builds `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-musl` (static, so any CI image works) and `aarch64-apple-darwin`. It zips each as `updraft-<version>-<os>-<arch>.zip`, which rokit's keyword matching accepts. `spec.yml` runs `cargo xtask spec update` weekly and opens a PR whose body is the added, removed and changed list.
 
