@@ -900,7 +900,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "analytics-benchmark.create-universe-benchmark",
+      "name": "analytics-benchmark.query-universe-benchmarks",
       "key": "POST /analytics-benchmark/v1/universes/{universeId}/benchmarks",
       "method": "POST",
       "server": "apis",
@@ -950,7 +950,10 @@
         }
       },
       "stability": "experimental",
-      "safety": "unsafe"
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
     },
     {
       "name": "analytics-query.get-universe-operations-dimension-value",
@@ -16159,59 +16162,6 @@
       ]
     },
     {
-      "name": "server-management.create-universe-restart",
-      "key": "POST /server-management/v1/universes/{universeId}/restarts",
-      "operation_id": "Restarts_LaunchRestart",
-      "method": "POST",
-      "server": "apis",
-      "path": "/server-management/v1/universes/{universeId}/restarts",
-      "summary": "Launch a game server restart for a universe.",
-      "tags": [
-        "Observability"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The universe ID"
-        }
-      ],
-      "body": {
-        "required": false,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "LaunchRestartRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "LaunchRestartResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:write",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "unsafe"
-    },
-    {
       "name": "server-management.forecast-universe-restarts",
       "key": "GET /server-management/v1/universes/{universeId}/restarts:forecast",
       "operation_id": "Restarts_ForecastRestart",
@@ -16311,6 +16261,62 @@
       },
       "stability": "beta",
       "safety": "read",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "server-management.launch-universe-restart",
+      "key": "POST /server-management/v1/universes/{universeId}/restarts",
+      "operation_id": "Restarts_LaunchRestart",
+      "method": "POST",
+      "server": "apis",
+      "path": "/server-management/v1/universes/{universeId}/restarts",
+      "summary": "Launch a game server restart for a universe.",
+      "tags": [
+        "Observability"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The universe ID"
+        }
+      ],
+      "body": {
+        "required": false,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "LaunchRestartRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "LaunchRestartResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:write",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "unsafe",
       "patches": [
         "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
       ]

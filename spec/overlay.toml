@@ -380,3 +380,15 @@ key = "POST /thumbnail-personalization-api/v1/universes/{universeId}/thumbnails/
 expect = { name = "", operation_id = "ThumbnailPersonalizationApi.HomepageThumbnail_UploadHomepageThumbnails" }
 name = "thumbnail-personalization.upload-universe-thumbnails"
 note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /analytics-benchmark/v1/universes/{universeId}/benchmarks"
+expect = { name = "", summary = "Returns daily benchmark percentiles for a metric, comparing a universe against other experiences on Roblox." }
+name = "analytics-benchmark.query-universe-benchmarks"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /server-management/v1/universes/{universeId}/restarts"
+expect = { name = "", operation_id = "Restarts_LaunchRestart" }
+name = "server-management.launch-universe-restart"
+note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."

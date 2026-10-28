@@ -46,3 +46,5 @@ service-efficiency.set-accounts-group	service-efficiency.update-accounts-group
 service-efficiency.set-accounts-user	service-efficiency.update-accounts-user
 thumbnail-personalization.create-universe-personalization-update	thumbnail-personalization.update-universe-personalization
 thumbnail-personalization.create-universe-thumbnails-upload	thumbnail-personalization.upload-universe-thumbnails
+analytics-benchmark.create-universe-benchmark	analytics-benchmark.query-universe-benchmarks
+server-management.create-universe-restart	server-management.launch-universe-restart
