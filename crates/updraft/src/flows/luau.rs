@@ -71,7 +71,7 @@ fn logs(ex: &Executor<'_>, from: &updraft_registry::Op, path: &str) -> Result<Ve
     let (op, captures) = ex
         .registry
         .reader_of(from, &log_path)
-        .ok_or_else(|| Failure::unavailable(format!("no reader matches task path {path}")).with("path", json!(path)))?;
+        .map_err(|_| Failure::unavailable(format!("no reader matches task path {path}")).with("path", json!(path)))?;
     let result = ex.send_all(Call::new(op, decode_captures(captures.0), vec![], None)?, None)?;
     let entries = result["luauExecutionSessionTaskLogs"]
         .as_array()

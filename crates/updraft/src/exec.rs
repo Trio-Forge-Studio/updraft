@@ -325,7 +325,7 @@ impl<'a> Executor<'a> {
                 path = Some(new.into());
             }
             let path = path.as_deref().ok_or_else(|| Failure::unavailable("response has no resource path to poll"))?;
-            let (reader, captures) = self.registry.reader_of(op, path).ok_or_else(|| {
+            let (reader, captures) = self.registry.reader_of(op, path).map_err(|_| {
                 Failure::unavailable(format!("no reader matches task path {path}")).with("path", json!(path))
             })?;
             let call = Call::new(reader, decode_captures(captures.0), vec![], None)?;
