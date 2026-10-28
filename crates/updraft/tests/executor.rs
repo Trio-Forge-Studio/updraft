@@ -14,15 +14,7 @@ fn unsafe_429_is_sent_once_and_exits_7() {
         t.status(429).body("slow");
     });
     let out = command(&server.base_url())
-        .args([
-            "call",
-            "cloud.create-universe-place-luau-execution-session-task",
-            "universe_id=1",
-            "place_id=2",
-            "--body",
-            "{}",
-            "--no-wait",
-        ])
+        .args(["call", "luau.create-task", "universe_id=1", "place_id=2", "--body", "{}", "--no-wait"])
         .output()
         .unwrap();
     assert_eq!(code(&out), 7, "429 means not processed");
@@ -35,16 +27,7 @@ fn refused_unsafe_connection_is_attempted_once_and_exits_7() {
     let port = listener.local_addr().unwrap().port();
     drop(listener);
     let out = command(&format!("http://127.0.0.1:{port}"))
-        .args([
-            "--verbose",
-            "call",
-            "cloud.create-universe-place-luau-execution-session-task",
-            "universe_id=1",
-            "place_id=2",
-            "--body",
-            "{}",
-            "--no-wait",
-        ])
+        .args(["--verbose", "call", "luau.create-task", "universe_id=1", "place_id=2", "--body", "{}", "--no-wait"])
         .output()
         .unwrap();
     assert_eq!(code(&out), 7, "a refused connection never left");
@@ -63,7 +46,7 @@ fn absent_scope_metadata_is_null_on_401_and_403() {
             w.method(GET).path("/cloud/v2/universes/1");
             t.status(status);
         });
-        let out = command(&server.base_url()).args(["call", "cloud.get-universe", "universe_id=1"]).output().unwrap();
+        let out = command(&server.base_url()).args(["call", "universes.get", "universe_id=1"]).output().unwrap();
         assert_eq!(code(&out), 3);
         let d = document(&out);
         assert!(d["error"]["requiredScopes"].is_null());
@@ -166,14 +149,7 @@ fn invalid_calls_fail_before_sending() {
         vec!["call", "assets.get-asset", "assetId=42", "invented=5"],
         vec!["call", "universes.create-place-version", "universeId=nope", "placeId=2", "--body", "x"],
         vec!["call", "assets.get-asset", "assetId=42", "--body", "{}"],
-        vec![
-            "call",
-            "cloud.create-universe-place-luau-execution-session-task",
-            "universe_id=1",
-            "place_id=2",
-            "--body",
-            "{",
-        ],
+        vec!["call", "luau.create-task", "universe_id=1", "place_id=2", "--body", "{"],
         vec!["call", "assets.get-asset", "assetId=42", "--all"],
     ] {
         let out = command(&server.base_url()).args(args).output().unwrap();
@@ -281,10 +257,7 @@ fn generic_completion_polls_the_shared_matcher() {
         w.method(GET).path("/cloud/v2/universes/1/memory-store/operations/x");
         t.json_body(json!({"done":true,"response":{"ok":true}}));
     });
-    let out = command(&server.base_url())
-        .args(["call", "cloud.flush-universe-memory-store", "universe_id=1"])
-        .output()
-        .unwrap();
+    let out = command(&server.base_url()).args(["call", "memory-store.flush", "universe_id=1"]).output().unwrap();
     assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stdout));
     assert_eq!(document(&out)["done"], true);
     create.assert_calls(1);
@@ -425,7 +398,7 @@ fn empty_success_bodies_are_not_retried_for_any_declared_payload() {
         (
             httpmock::Method::DELETE,
             "/cloud/v2/universes/1/data-stores/store/entries/entry",
-            "cloud.delete-universe-data-store-entry",
+            "data-stores.delete-entry",
             vec!["universe_id=1", "data_store_id=store", "entry_id=entry"],
         ),
     ] {
@@ -513,12 +486,7 @@ fn auth_failures_share_scope_and_profile_metadata() {
 fn excessive_retry_after_stops_without_waiting_or_retrying() {
     for (name, pairs, status, expected) in [
         ("assets.get-asset", vec!["assetId=42"], 429, 7),
-        (
-            "cloud.create-universe-place-luau-execution-session-task",
-            vec!["universe_id=1", "place_id=2", "--body", "{}"],
-            503,
-            5,
-        ),
+        ("luau.create-task", vec!["universe_id=1", "place_id=2", "--body", "{}"], 503, 5),
     ] {
         let server = MockServer::start();
         let m = server.mock(|_, t| {

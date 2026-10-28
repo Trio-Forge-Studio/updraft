@@ -5,11 +5,15 @@ use serde_json::{Value, json};
 use std::path::PathBuf;
 #[derive(clap::Args)]
 pub struct Args {
+    /// The place file to publish.
     pub file: PathBuf,
+    /// The universe ID containing the place.
     #[arg(long,value_parser=super::positive_id)]
     pub universe: String,
+    /// The place ID to update.
     #[arg(long,value_parser=super::positive_id)]
     pub place: String,
+    /// Publish the version or save it without publishing.
     #[arg(long, value_enum, default_value = "published")]
     pub version_type: VersionType,
 }

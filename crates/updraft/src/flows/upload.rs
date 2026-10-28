@@ -7,18 +7,25 @@ use std::path::PathBuf;
 
 #[derive(clap::Args)]
 pub struct Args {
+    /// The asset file to upload.
     #[arg(required_unless_present = "resume", conflicts_with = "resume")]
     pub file: Option<PathBuf>,
+    /// Resume an accepted upload by operation ID using GET only.
     #[arg(long,value_parser=operation_id,conflicts_with_all=["file","asset_type","name","description","group","user"])]
     pub resume: Option<String>,
+    /// Override the asset type inferred from the file extension.
     #[arg(long = "type", value_enum)]
     pub asset_type: Option<AssetType>,
+    /// Override the display name inferred from the file stem.
     #[arg(long)]
     pub name: Option<String>,
+    /// Set the asset description.
     #[arg(long, default_value = "")]
     pub description: String,
+    /// Create the asset under this group ID.
     #[arg(long,value_parser=super::positive_id,conflicts_with="user")]
     pub group: Option<String>,
+    /// Create the asset under this user ID.
     #[arg(long,value_parser=super::positive_id)]
     pub user: Option<String>,
 }

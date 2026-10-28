@@ -5,12 +5,16 @@ use serde_json::{Value, json};
 use std::path::PathBuf;
 #[derive(clap::Args)]
 pub struct Args {
+    /// The asset ID to download.
     #[arg(value_parser=super::positive_id)]
     pub asset: String,
+    /// Write the downloaded bytes to this file.
     #[arg(long)]
     pub out: PathBuf,
+    /// Download this asset version instead of the latest.
     #[arg(long)]
     pub version: Option<u32>,
+    /// Replace an existing output file after a successful download.
     #[arg(long)]
     pub overwrite: bool,
 }

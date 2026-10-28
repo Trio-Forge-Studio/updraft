@@ -5,16 +5,22 @@ use serde_json::{Value, json};
 use std::path::PathBuf;
 #[derive(clap::Args)]
 pub struct Args {
+    /// A UTF-8 Luau file, or - to read stdin.
     #[arg(required_unless_present = "resume", conflicts_with = "resume")]
     pub script: Option<String>,
+    /// Resume an accepted task resource path using GET only.
     #[arg(long, value_parser = task_path, conflicts_with_all = ["script", "universe", "place", "version", "timeout"])]
     pub resume: Option<String>,
+    /// The universe ID where the script runs.
     #[arg(long, required_unless_present = "resume", value_parser = super::positive_id)]
     pub universe: Option<String>,
+    /// The place ID where the script runs.
     #[arg(long, required_unless_present = "resume", value_parser = super::positive_id)]
     pub place: Option<String>,
+    /// Run against this place version instead of the latest.
     #[arg(long)]
     pub version: Option<u64>,
+    /// Set the Roblox execution timeout in seconds.
     #[arg(long)]
     pub timeout: Option<u64>,
 }

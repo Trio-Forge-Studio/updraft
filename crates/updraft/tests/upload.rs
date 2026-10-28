@@ -572,10 +572,7 @@ fn generic_acceptance_maps_later_failures_and_readers_wait_on_resume() {
             Response::Reset,
             Response::Reset,
         ]);
-        let out = command(&server.origin)
-            .args(["call", "cloud.flush-universe-memory-store", "universe_id=1"])
-            .output()
-            .unwrap();
+        let out = command(&server.origin).args(["call", "memory-store.flush", "universe_id=1"]).output().unwrap();
         assert_eq!(code(&out), 8, "{}", document(&out));
         assert_eq!(
             document(&out)["error"]["resume"],
@@ -584,8 +581,7 @@ fn generic_acceptance_maps_later_failures_and_readers_wait_on_resume() {
         assert_eq!(server.requests().iter().filter(|r| r.head.starts_with("POST ")).count(), 1);
     }
     let server = Server::new(vec![Response::json(json!({}))]);
-    let out =
-        command(&server.origin).args(["call", "cloud.flush-universe-memory-store", "universe_id=1"]).output().unwrap();
+    let out = command(&server.origin).args(["call", "memory-store.flush", "universe_id=1"]).output().unwrap();
     assert_eq!(code(&out), 5, "a missing operation identity cannot authorize another write");
     assert!(document(&out)["error"]["hint"].as_str().unwrap().contains("Creations"));
 }
@@ -733,8 +729,7 @@ fn polling_keeps_server_errors_separate_from_the_last_resource() {
     let first = json!({"path":"universes/1/memory-store/operations/x","done":false});
     let server =
         Server::new(vec![Response::json(first.clone()), Response::Body(404, json!({"code":"NOT_FOUND"}).to_string())]);
-    let out =
-        command(&server.origin).args(["call", "cloud.flush-universe-memory-store", "universe_id=1"]).output().unwrap();
+    let out = command(&server.origin).args(["call", "memory-store.flush", "universe_id=1"]).output().unwrap();
     let error = &document(&out)["error"];
     assert_eq!(code(&out), 8);
     assert_eq!(error["detail"], json!({"code":"NOT_FOUND"}), "the server body stays in detail");
@@ -839,8 +834,7 @@ fn introspection_declares_an_empty_scope_requirement() {
 #[test]
 fn accepted_invalid_json_has_a_short_message_and_redacted_detail() {
     let server = Server::new(vec![Response::Body(200, format!("invalid response containing {KEY}"))]);
-    let out =
-        command(&server.origin).args(["call", "cloud.flush-universe-memory-store", "universe_id=1"]).output().unwrap();
+    let out = command(&server.origin).args(["call", "memory-store.flush", "universe_id=1"]).output().unwrap();
     assert_eq!(code(&out), 5);
     let error = &document(&out)["error"];
     assert_eq!(error["message"], "invalid JSON response");
