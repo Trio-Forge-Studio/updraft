@@ -7,7 +7,7 @@ use std::path::PathBuf;
 pub struct Args {
     #[arg(required_unless_present = "resume", conflicts_with = "resume")]
     pub script: Option<String>,
-    #[arg(long, conflicts_with_all = ["script", "universe", "place", "version", "timeout"])]
+    #[arg(long, value_parser = task_path, conflicts_with_all = ["script", "universe", "place", "version", "timeout"])]
     pub resume: Option<String>,
     #[arg(long, required_unless_present = "resume", value_parser = super::positive_id)]
     pub universe: Option<String>,
@@ -17,6 +17,16 @@ pub struct Args {
     pub version: Option<u64>,
     #[arg(long)]
     pub timeout: Option<u64>,
+}
+fn task_path(path: &str) -> Result<String, String> {
+    if path.starts_with("universes/")
+        && path.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_'))
+        && path.split('/').all(|part| !part.is_empty())
+    {
+        Ok(path.into())
+    } else {
+        Err("--resume requires a task resource path".into())
+    }
 }
 const READER: &str = "GET /cloud/v2/universes/{universe_id}/places/{place_id}/versions/{version_id}/luau-execution-sessions/{luau_execution_session_id}/tasks/{task_id}";
 pub fn primary<'r>(r: &'r updraft_registry::Registry, args: &Args) -> &'r updraft_registry::Op {
@@ -34,12 +44,6 @@ pub fn primary<'r>(r: &'r updraft_registry::Registry, args: &Args) -> &'r updraf
 fn first(ex: &Executor<'_>, args: Args) -> Result<(Value, &'static updraft_registry::Op), Failure> {
     let op = primary(ex.registry, &args);
     if let Some(path) = args.resume {
-        if path.is_empty()
-            || path.chars().any(|c| !(c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_')))
-            || path.split('/').any(str::is_empty)
-        {
-            return Err(Failure::usage("--resume requires a task resource path"));
-        }
         return Ok((json!({"path":path}), op));
     }
     let script = args.script.expect("clap requires a script for creation");
@@ -64,7 +68,11 @@ fn first(ex: &Executor<'_>, args: Args) -> Result<(Value, &'static updraft_regis
         content_type: "application/json".into(),
         bytes: serde_json::to_vec(&body).expect("a JSON value serializes"),
     };
-    Ok((ex.send(&Call::new(op, vec![], pairs, Some(input))?)?.json()?, op))
+    let first = ex.send(&Call::new(op, vec![], pairs, Some(input))?)?.json()?;
+    if let Some(path) = first["path"].as_str() {
+        task_path(path).map_err(|_| Failure::unknown("Luau create returned an invalid task path"))?;
+    }
+    Ok((first, op))
 }
 pub fn run(ex: &Executor<'_>, args: Args) -> Result<Value, Failure> {
     let (first, op) = first(ex, args)?;

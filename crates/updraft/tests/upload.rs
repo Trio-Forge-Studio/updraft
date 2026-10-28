@@ -672,3 +672,28 @@ fn accepted_write_with_a_closed_stdout_keeps_an_unsafe_outcome_code() {
     assert_eq!(code(&out), 5, "failure to deliver stdout cannot authorize another write");
     assert_eq!(server.requests().len(), 1);
 }
+
+#[test]
+fn luau_resource_paths_cannot_inject_resume_arguments() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("probe.luau");
+    std::fs::write(&script, "return 42").unwrap();
+    for path in [
+        "universes/1/places/2/tasks/t --help",
+        "universes/1/places/2/tasks/t;echo",
+        "universes/1/places/2/tasks/t\n",
+        "https://other.test/task",
+    ] {
+        let server = Server::new(vec![Response::json(json!({"path":path,"state":"QUEUED"}))]);
+        let out = command(&server.origin)
+            .args(["luau", "run", script.to_str().unwrap(), "--universe", "1", "--place", "2"])
+            .output()
+            .unwrap();
+        assert_eq!(code(&out), 5, "unsafe task identity cannot become a recovery command");
+        assert!(document(&out)["error"]["resume"].is_null());
+        assert_eq!(server.requests().len(), 1);
+        let out = command(&server.origin).args(["luau", "run", "--resume", path]).output().unwrap();
+        assert_eq!(code(&out), 2, "resume arguments must be task resource paths");
+        assert_eq!(server.requests().len(), 1);
+    }
+}
