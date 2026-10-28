@@ -86,3 +86,9 @@ safety = "read"
 params = [{ name = "placeId", in = "path", required = true, kind = { type = "integer" } }]
 response = { type = "json", shape = { type = "object", fields = [{ name = "universeId", shape = { type = "integer" } }] } }
 patches = ["Missing from the spec. A public endpoint that needs no key."]
+
+[[patch]]
+key = "GET /cloud/v2/universes/{universe_id}/places/{place_id}/versions/{version_id}/luau-execution-sessions/{luau_execution_session_id}/tasks/{task_id}"
+expect = { completion = "absent" }
+note = "The task reader has the same terminal states as creation, so GET-only resumes wait by default."
+completion = { type = "state", field = "state", success = ["COMPLETE"], failure = ["FAILED", "CANCELLED"] }

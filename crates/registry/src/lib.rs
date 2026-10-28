@@ -70,10 +70,11 @@ impl Registry {
         }
     }
 
-    pub fn reader_of(&self, from: &Op, resource_path: &str) -> Option<(&Op, Captures)> {
+    pub fn reader_of(&self, from: &Op, resource_path: &str) -> Result<(&Op, Captures), ResolveError> {
         let root = Template::parse(&from.path);
         let root_prefix: Vec<&str> = from.path.trim_matches('/').split('/').take(root.root_len()).collect();
-        self.ops
+        let mut matches: Vec<_> = self
+            .ops
             .iter()
             .filter(|op| op.method == Method::Get)
             .filter(|op| op.path.trim_matches('/').split('/').take(root_prefix.len()).eq(root_prefix.iter().copied()))
@@ -82,8 +83,16 @@ impl Registry {
                 let relative = template.without_root(template.root_len());
                 relative.captures(resource_path).map(|captures| (op, captures, relative.specificity()))
             })
-            .max_by_key(|(_, _, specificity)| *specificity)
-            .map(|(op, captures, _)| (op, captures))
+            .collect();
+        let Some(top) = matches.iter().map(|(_, _, specificity)| *specificity).max() else {
+            return Err(ResolveError::Unknown { suggestions: Vec::new() });
+        };
+        matches.retain(|(_, _, specificity)| *specificity == top);
+        if matches.len() != 1 {
+            return Err(ResolveError::Ambiguous { names: matches.iter().map(|(op, _, _)| op.name.clone()).collect() });
+        }
+        let (op, captures, _) = matches.pop().expect("one reader remains");
+        Ok((op, captures))
     }
 
     pub fn find(&self, query: &str, limit: usize) -> Vec<Hit> {

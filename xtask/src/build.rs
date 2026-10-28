@@ -108,7 +108,43 @@ pub fn build(input: Input<'_>) -> Result<(Registry, Report), Vec<String>> {
     errors.extend(completion_coverage(&drafts, &schemas));
     errors.extend(upstream_completion_coverage(spec, &drafts));
 
-    if errors.is_empty() { Ok((Registry { source: input.source, ops: drafts, schemas }, report)) } else { Err(errors) }
+    let registry = Registry { source: input.source, ops: drafts, schemas };
+    errors.extend(completion_readers(&registry));
+    if errors.is_empty() { Ok((registry, report)) } else { Err(errors) }
+}
+
+fn completion_readers(registry: &Registry) -> Vec<String> {
+    let mut errors = Vec::new();
+    for from in registry.ops.iter().filter(|op| op.completion.is_some()) {
+        let root = Template::parse(&from.path).root_len();
+        let prefix: Vec<_> = from.path.split('/').skip(1).take(root).collect();
+        let readers: Vec<_> = registry
+            .ops
+            .iter()
+            .filter(|op| {
+                op.method == Method::Get
+                    && op.completion == from.completion
+                    && op.path.split('/').skip(1).take(root).eq(prefix.iter().copied())
+            })
+            .collect();
+        if readers.is_empty() {
+            errors.push(format!("{} has no completion reader", from.key));
+        }
+        for reader in readers {
+            let template = Template::parse(&reader.path);
+            let path = template
+                .without_root(template.root_len())
+                .render(|_| Some("42".into()))
+                .expect("reader parameters render");
+            if let Err(error) = registry.reader_of(from, &path) {
+                errors.push(format!(
+                    "{} completion reader {} must resolve exactly once: {error:?}",
+                    from.key, reader.key
+                ));
+            }
+        }
+    }
+    errors
 }
 
 pub fn completion_coverage(ops: &[Op], schemas: &BTreeMap<String, Shape>) -> Vec<String> {
@@ -199,7 +235,8 @@ fn draft(outliner: &mut Outliner<'_>, path: &str, method: Method, item: &Value, 
         .filter(|schema| {
             let fields = properties(spec, schema);
             operation.get("x-long-running-operation-parameters").is_some()
-                || (fields.contains_key("done") && fields.contains_key("path"))
+                || (fields.contains_key("done")
+                    && (fields.contains_key("path") || fields.contains_key("response") || fields.contains_key("error")))
         })
         .map(|_| Completion::Operation);
     let scopes = operation["x-roblox-scopes"].as_array().map(|scopes| {

@@ -4668,7 +4668,21 @@
         }
       },
       "stability": "stable",
-      "safety": "read"
+      "safety": "read",
+      "completion": {
+        "type": "state",
+        "field": "state",
+        "success": [
+          "COMPLETE"
+        ],
+        "failure": [
+          "FAILED",
+          "CANCELLED"
+        ]
+      },
+      "patches": [
+        "The task reader has the same terminal states as creation, so GET-only resumes wait by default."
+      ]
     },
     {
       "name": "cloud.get-universe-secrets-public-key",

@@ -134,7 +134,7 @@ fn matcher_handles_urls_polling_and_ambiguous_templates() {
             "universes/1/places/2/versions/3/luau-execution-sessions/s/tasks/t",
         ),
     ] {
-        assert!(r.reader_of(r.by_key(key).unwrap(), path).is_some(), "{path} resolves through the shared matcher");
+        assert!(r.reader_of(r.by_key(key).unwrap(), path).is_ok(), "{path} resolves through the shared matcher");
     }
     assert!(matches!(
         r.resolve(&OpRef::Url {
@@ -283,5 +283,56 @@ fn duplicate_overlay_keys_fail_the_build() {
     assert!(
         errors.iter().any(|e| e.contains("duplicate key POST /api-keys/v1/introspect")),
         "distinct names cannot hide a duplicate identity: {errors:?}"
+    );
+}
+
+#[test]
+fn reader_reports_ties_instead_of_choosing_one() {
+    let (_, _, mut r) = inputs();
+    let original = r.op("assets.get-operation").unwrap().clone();
+    let mut duplicate = original.clone();
+    duplicate.name = "assets.other-reader".into();
+    duplicate.key = "GET /assets/v1/operations/{anotherId}".into();
+    duplicate.path = "/assets/v1/operations/{anotherId}".into();
+    r.ops.push(duplicate);
+    assert!(
+        matches!(r.reader_of(&original, "operations/x"), Err(ResolveError::Ambiguous { .. })),
+        "a tied reader must be reported as ambiguous"
+    );
+}
+
+#[test]
+fn completion_reader_build_check_rejects_a_tied_template() {
+    let (mut spec, overlay, previous) = inputs();
+    let reader = spec["paths"]["/assets/v1/operations/{operationId}"].clone();
+    spec["paths"]["/assets/v1/operations/{otherId}"] = reader;
+    let result = build::build(build::Input {
+        spec: &spec,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+        overlay: &overlay,
+    });
+    assert!(result.is_err(), "the build must reject an ambiguous completion reader");
+}
+
+#[test]
+fn operation_shaped_gets_and_luau_readers_have_completions() {
+    let (mut spec, overlay, previous) = inputs();
+    spec["paths"]["/assets/v99/operations/{id}"] = json!({"get":{"security":[{"roblox-api-key":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"content":{"application/json":{"schema":{"type":"object","properties":{"done":{"type":"boolean"},"response":{"type":"object"}}}}}}}}});
+    let result = build::build(build::Input {
+        spec: &spec,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+        overlay: &overlay,
+    });
+    assert!(result.is_ok(), "Operation-shaped GETs get completion data even without a path field");
+    let (r, _) = result.unwrap();
+    assert_eq!(r.by_key("GET /assets/v99/operations/{id}").unwrap().completion, Some(Completion::Operation));
+    assert!(
+        matches!(
+            r.op("cloud.get-universe-place-version-luau-execution-session-task").unwrap().completion,
+            Some(Completion::State { .. })
+        ),
+        "Luau resume readers must wait for a terminal state"
     );
 }
