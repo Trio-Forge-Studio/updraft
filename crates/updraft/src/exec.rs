@@ -1,6 +1,6 @@
 use crate::auth::Secret;
 use crate::call::Call;
-use crate::outcome::{Attempt, Failure, History, Verdict, judge};
+use crate::outcome::{Attempt, DEFAULT_ATTEMPTS, Failure, History, Verdict, judge};
 use crate::output::Output;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -44,8 +44,11 @@ impl<'a> Executor<'a> {
         origin: Option<String>,
         key: Option<&'a Secret>,
         timing: Timing,
-        out: &'a Output,
+        out: &'a mut Output,
     ) -> Result<Self, Failure> {
+        if let Some(key) = key {
+            out.redact_also(key);
+        }
         if let Some(origin) = &origin {
             let url = url::Url::parse(origin).map_err(|_| Failure::usage("UPDRAFT_ORIGIN must be an HTTP origin"))?;
             if !matches!(url.scheme(), "http" | "https")
@@ -93,6 +96,12 @@ impl<'a> Executor<'a> {
                     ureq::http::HeaderValue::from_str(key.expose())
                         .map_err(|_| Failure::new(3, "auth", "selected key is not a valid header value"))?,
                 );
+            }
+            if let Auth::BodyKey { field } = &op.auth {
+                let key = self.key.ok_or_else(|| Failure::new(3, "auth", "no API key selected"))?;
+                *request.body_mut() =
+                    serde_json::to_vec(&json!({field:key.expose()})).expect("a JSON value serializes");
+                request.headers_mut().insert("content-type", ureq::http::HeaderValue::from_static("application/json"));
             }
             self.out.trace(&format!("{} {}", request.method(), op.path));
             let request_timeout = Duration::from_secs(if op.method == Method::Get { 30 } else { 120 });
@@ -192,7 +201,7 @@ impl<'a> Executor<'a> {
                 Verdict::Retry { after_seconds, history: next } => {
                     history = next;
                     let delay = self.timing.retry_delay.unwrap_or(Duration::from_secs(after_seconds.into()));
-                    let attempts = op.retry.as_ref().map_or(3, |r| r.attempts);
+                    let attempts = op.retry.as_ref().map_or(DEFAULT_ATTEMPTS, |r| r.attempts);
                     self.out.note(&format!(
                         "{reason}, retrying in {} s (attempt {} of {attempts})",
                         delay.as_secs_f64(),
@@ -200,18 +209,7 @@ impl<'a> Executor<'a> {
                     ));
                     std::thread::sleep(call.timeout().map_or(delay, |remaining| delay.min(remaining)));
                 }
-                Verdict::Fail(failure) => {
-                    return Err(if failure.code == 3 {
-                        let scopes = match &op.auth {
-                            Auth::ApiKey { scopes } => scopes.clone(),
-                            Auth::None => Some(vec![]),
-                        };
-                        let metadata = if scopes.is_some() { "declared" } else { "unknown" };
-                        failure.with("requiredScopes", json!(scopes)).with("scopeMetadata", json!(metadata))
-                    } else {
-                        failure
-                    });
-                }
+                Verdict::Fail(failure) => return Err(failure),
             }
         }
     }

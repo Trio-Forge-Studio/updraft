@@ -42,11 +42,10 @@ fn camel(name: &str) -> String {
     out
 }
 pub fn describe(registry: &Registry, op: &Op) -> Value {
-    let scopes = match &op.auth {
-        Auth::ApiKey { scopes } => scopes.clone(),
-        Auth::None => Some(vec![]),
-    };
-    let mut doc = json!({"name":op.name,"method":op.method,"url":format!("{}{}",op.server.origin(),op.path),"path":op.path,"operationId":op.operation_id,"summary":op.summary,"description":op.description,"params":outline(registry,json!(op.params),2),"requiredScopes":scopes,"scopeMetadata":if scopes.is_some(){"declared"}else{"unknown"},"safety":op.safety,"legacy":op.legacy,"stability":op.stability,"patches":op.patches,"alternatives":op.alternatives});
+    let mut doc = json!({"name":op.name,"method":op.method,"url":format!("{}{}",op.server.origin(),op.path),"path":op.path,"operationId":op.operation_id,"summary":op.summary,"description":op.description,"params":outline(registry,json!(op.params),2),"safety":op.safety,"legacy":op.legacy,"stability":op.stability,"patches":op.patches,"alternatives":op.alternatives});
+    doc.as_object_mut()
+        .expect("description is an object")
+        .extend(crate::auth::scope_metadata(op).as_object().expect("scope metadata is an object").clone());
     doc["body"] = match &op.body {
         None => Value::Null,
         Some(body) => {
@@ -61,6 +60,10 @@ pub fn describe(registry: &Registry, op: &Op) -> Value {
             media
         }
     };
+    if let Auth::BodyKey { field } = &op.auth {
+        doc["body"]["credentialField"] = json!(field);
+        doc["body"]["suppliedBy"] = json!("selectedKey");
+    }
     doc["response"] = match &op.response {
         Payload::Json { shape } => outline(registry, json!(shape), 2),
         other => json!(other),
@@ -86,6 +89,7 @@ pub fn describe(registry: &Registry, op: &Op) -> Value {
         })
         .collect::<String>();
     let body = match op.body.as_ref().map(|body| &body.media) {
+        _ if matches!(op.auth, Auth::BodyKey { .. }) => String::new(),
         Some(BodyMedia::Multipart { parts }) => {
             parts.iter().map(|part| format!(" --part {}=@<file>", part.name)).collect()
         }

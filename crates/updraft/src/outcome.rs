@@ -1,6 +1,8 @@
 use serde_json::{Value, json};
 use updraft_registry::{Op, Safety};
 
+pub const DEFAULT_ATTEMPTS: u8 = 3;
+
 #[derive(Debug)]
 pub struct Failure {
     pub code: u8,
@@ -94,7 +96,7 @@ pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
         }
     };
     let uncertain = history.uncertain || uncertain;
-    let attempts = op.retry.as_ref().map_or(3, |policy| policy.attempts);
+    let attempts = op.retry.as_ref().map_or(DEFAULT_ATTEMPTS, |policy| policy.attempts);
     if retryable && history.attempts + 1 < attempts {
         let delay = op.retry.as_ref().map_or(if history.attempts == 0 { 1 } else { 4 }, |policy| policy.delay_seconds);
         return Verdict::Retry {

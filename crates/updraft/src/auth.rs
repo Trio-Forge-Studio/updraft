@@ -69,19 +69,26 @@ impl KeySource {
         }
     }
 }
-pub fn auth_error(op: &Op, source: Option<&KeySource>, config: &Config, message: impl Into<String>) -> Failure {
+pub fn scope_metadata(op: &Op) -> serde_json::Value {
     let scopes = match &op.auth {
         Auth::ApiKey { scopes } => scopes.clone(),
+        Auth::BodyKey { .. } => None,
         Auth::None => Some(vec![]),
     };
-    let metadata = if scopes.is_some() { "declared" } else { "unknown" };
-    Failure::new(3, "auth", message)
-        .with("status", json!(null))
-        .with("requiredScopes", json!(scopes))
-        .with("scopeMetadata", json!(metadata))
-        .with("keySource", json!(source.map(KeySource::label)))
-        .with("profiles", json!(config.profiles.keys().collect::<Vec<_>>()))
+    json!({"requiredScopes":scopes,"scopeMetadata":if scopes.is_some() { "declared" } else { "unknown" }})
 }
+pub fn decorate(mut failure: Failure, op: &Op, source: Option<&KeySource>, config: &Config) -> Failure {
+    if failure.code == 3 {
+        let error = failure.error.as_object_mut().expect("a failure is an object");
+        error.entry("status").or_insert(serde_json::Value::Null);
+        error.extend(scope_metadata(op).as_object().expect("scope metadata is an object").clone());
+        failure = failure
+            .with("keySource", json!(source.map(KeySource::label)))
+            .with("profiles", json!(config.profiles.keys().collect::<Vec<_>>()));
+    }
+    failure
+}
+
 pub fn choose(
     config: &Config,
     explicit: Option<&str>,

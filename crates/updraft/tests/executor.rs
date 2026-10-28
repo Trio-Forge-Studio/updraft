@@ -443,3 +443,52 @@ fn generic_call_rejects_the_removed_output_flag() {
     assert_eq!(code(&out), 2, "only the asset download flow has an output file");
     m.assert_calls(0);
 }
+
+#[test]
+fn introspection_owns_its_body_key_and_rejects_caller_bodies() {
+    let server = MockServer::start();
+    let m = server.mock(|w, t| {
+        w.method(POST).path("/api-keys/v1/introspect").json_body(json!({"apiKey":KEY})).header_missing("x-api-key");
+        t.status(400).json_body(json!({"key":KEY}));
+    });
+    let out = command(&server.base_url()).args(["call", "api-keys.introspect"]).output().unwrap();
+    assert_eq!(code(&out), 4, "the selected body key reaches introspection: {}", document(&out));
+    assert_eq!(document(&out)["error"]["detail"]["key"], "<redacted>");
+    for body in ["{}", "@missing-key-file.json"] {
+        let out = command(&server.base_url()).args(["call", "api-keys.introspect", "--body", body]).output().unwrap();
+        assert_eq!(code(&out), 2, "introspection accepts no caller-supplied body");
+    }
+    m.assert_calls(1);
+}
+
+#[test]
+fn auth_failures_share_scope_and_profile_metadata() {
+    let server = MockServer::start();
+    server.mock(|w, t| {
+        w.path("/assets/v1/assets/42");
+        t.status(403);
+    });
+    for missing in [true, false] {
+        let mut cmd = command(&server.base_url());
+        if missing {
+            cmd.env_remove("UPDRAFT_API_KEY");
+        }
+        let out = cmd.args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+        let error = &document(&out)["error"];
+        assert_eq!(code(&out), 3);
+        assert_eq!(error["scopeMetadata"], "declared");
+        assert!(!error["requiredScopes"].as_array().unwrap().is_empty());
+        assert_eq!(error["profiles"], json!([]));
+    }
+    server.mock(|w, t| {
+        w.path("/api-keys/v1/introspect");
+        t.status(401);
+    });
+    let out = command(&server.base_url()).args(["auth", "check"]).output().unwrap();
+    assert_eq!(code(&out), 3);
+    assert_eq!(
+        document(&out)["error"]["scopeMetadata"],
+        "unknown",
+        "body-key introspection has no declared scope requirements"
+    );
+}

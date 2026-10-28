@@ -7,7 +7,7 @@ mod flows;
 mod outcome;
 mod output;
 
-use crate::call::{BodyInput, Call, Source};
+use crate::call::{Call, Source};
 use crate::cli::{AssetCommand, AuthCommand, Cli, Command, LuauCommand, PlaceCommand};
 use crate::exec::{Executor, Timing};
 use crate::outcome::Failure;
@@ -77,110 +77,90 @@ fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
             Command::Asset(AssetCommand::Download(args)) => flows::download::primary(registry, args),
             Command::Place(PlaceCommand::Publish(_)) => flows::op(registry, flows::PUBLISH),
             Command::Luau(LuauCommand::Run(args)) => flows::luau::primary(registry, args),
-            _ => registry.op("assets.get-asset").expect("asset read is registered"),
+            _ => registry.op("api-keys.introspect").expect("introspection is registered"),
         }
     };
-    let force_key = matches!(cli.command, Command::Auth(AuthCommand::Check { .. }));
-    let source = if force_key || matches!(primary.auth, Auth::ApiKey { .. }) {
-        Some(
-            auth::choose(
-                &config,
-                cli.profile.as_deref(),
-                std::env::var("UPDRAFT_PROFILE").ok().as_deref(),
-                std::env::var_os("UPDRAFT_API_KEY").is_some(),
+    let mut source = None;
+    let result = (|| {
+        let force_key = matches!(cli.command, Command::Auth(AuthCommand::Check { .. }));
+        source = if force_key || !matches!(primary.auth, Auth::None) {
+            Some(
+                auth::choose(
+                    &config,
+                    cli.profile.as_deref(),
+                    std::env::var("UPDRAFT_PROFILE").ok().as_deref(),
+                    std::env::var_os("UPDRAFT_API_KEY").is_some(),
+                )
+                .map_err(|message| Failure::new(3, "auth", message))?,
             )
-            .map_err(|message| auth::auth_error(primary, None, &config, message))?,
-        )
-    } else {
-        None
-    };
-    let key = source
-        .as_ref()
-        .map(|source| {
-            auth::load(&config, source).map_err(|message| auth::auth_error(primary, Some(source), &config, message))
-        })
-        .transpose()?;
-    if let Some(key) = &key {
-        output.redact_also(key);
-    }
-    let executor = Executor::new(
-        registry,
-        std::env::var("UPDRAFT_ORIGIN").ok(),
-        key.as_ref(),
-        Timing {
-            deadline: Duration::from_secs_f64(cli.deadline),
-            poll_interval: Duration::from_secs_f64(cli.poll_interval),
-            retry_delay: cli.retry_delay.map(Duration::from_secs_f64),
-        },
-        output,
-    )?;
-    let profile = source.as_ref().and_then(|source| match source {
-        auth::KeySource::Profile(name) => config.profiles.get(name),
-        _ => None,
-    });
-    let result = (|| match cli.command {
-        Command::Asset(AssetCommand::Upload(args)) => flows::upload::run(&executor, args, profile),
-        Command::Asset(AssetCommand::Download(args)) => flows::download::run(&executor, args),
-        Command::Place(PlaceCommand::Publish(args)) => flows::publish::run(&executor, args),
-        Command::Luau(LuauCommand::Run(args)) => flows::luau::run(&executor, args),
-        Command::Call(args) => {
-            let call = prepared.expect("call arguments were validated");
-            if args.all {
-                executor.send_all(call, args.max_items)
-            } else {
-                let reply = executor.send(&call)?;
-                if !args.no_wait && call.op().completion.is_some() {
-                    executor.finish(call.op(), reply.json()?)
-                } else {
-                    reply.json()
-                }
-            }
-        }
-        Command::Auth(AuthCommand::Check { for_operation }) => {
-            let introspect = registry.by_key("POST /api-keys/v1/introspect").expect("introspection is registered");
-            let secret = key.as_ref().expect("auth check selects a key");
-            let body = BodyInput::Json {
-                content_type: "application/json".into(),
-                bytes: serde_json::to_vec(&json!({"apiKey":secret.expose()})).expect("a JSON value serializes"),
-            };
-            let reply = executor.send(&Call::new(introspect, vec![], vec![], Some(body))?)?.json()?;
-            let reply = auth::Introspection::parse(reply)?;
-            let scopes = reply.scopes();
-            if !reply.enabled || reply.expired {
-                return Err(auth::auth_error(primary, source.as_ref(), &config, "the key is disabled or expired"));
-            }
-            if for_operation.is_some()
-                && let Auth::ApiKey { scopes: Some(required) } = &primary.auth
-            {
-                let missing: Vec<_> = required
-                    .iter()
-                    .filter(|scope| !scopes.contains(&scope.name))
-                    .map(|scope| scope.name.as_str())
-                    .collect();
-                if !missing.is_empty() {
-                    return Err(auth::auth_error(
-                        primary,
-                        source.as_ref(),
-                        &config,
-                        format!("the selected key lacks {}", missing.join(", ")),
-                    ));
-                }
-            }
-            Ok(
-                json!({"keySource":source.as_ref().map(auth::KeySource::label),"name":reply.name,"enabled":reply.enabled,"expired":reply.expired,"scopes":scopes}),
-            )
-        }
-        _ => unreachable!("discovery and profiles returned before execution"),
-    })();
-    result.map_err(|failure| {
-        if failure.code == 3 {
-            failure
-                .with("keySource", json!(source.as_ref().map(auth::KeySource::label)))
-                .with("profiles", json!(config.profiles.keys().collect::<Vec<_>>()))
         } else {
-            failure
+            None
+        };
+        let key = source
+            .as_ref()
+            .map(|source| auth::load(&config, source).map_err(|message| Failure::new(3, "auth", message)))
+            .transpose()?;
+        let executor = Executor::new(
+            registry,
+            std::env::var("UPDRAFT_ORIGIN").ok(),
+            key.as_ref(),
+            Timing {
+                deadline: Duration::from_secs_f64(cli.deadline),
+                poll_interval: Duration::from_secs_f64(cli.poll_interval),
+                retry_delay: cli.retry_delay.map(Duration::from_secs_f64),
+            },
+            output,
+        )?;
+        let profile = source.as_ref().and_then(|source| match source {
+            auth::KeySource::Profile(name) => config.profiles.get(name),
+            _ => None,
+        });
+        match cli.command {
+            Command::Asset(AssetCommand::Upload(args)) => flows::upload::run(&executor, args, profile),
+            Command::Asset(AssetCommand::Download(args)) => flows::download::run(&executor, args),
+            Command::Place(PlaceCommand::Publish(args)) => flows::publish::run(&executor, args),
+            Command::Luau(LuauCommand::Run(args)) => flows::luau::run(&executor, args),
+            Command::Call(args) => {
+                let call = prepared.expect("call arguments were validated");
+                if args.all {
+                    executor.send_all(call, args.max_items)
+                } else {
+                    let reply = executor.send(&call)?;
+                    if !args.no_wait && call.op().completion.is_some() {
+                        executor.finish(call.op(), reply.json()?)
+                    } else {
+                        reply.json()
+                    }
+                }
+            }
+            Command::Auth(AuthCommand::Check { for_operation }) => {
+                let introspect = registry.by_key("POST /api-keys/v1/introspect").expect("introspection is registered");
+                let reply = executor.send(&Call::new(introspect, vec![], vec![], None)?)?.json()?;
+                let reply = auth::Introspection::parse(reply)?;
+                let scopes = reply.scopes();
+                if !reply.enabled || reply.expired {
+                    return Err(Failure::new(3, "auth", "the key is disabled or expired"));
+                }
+                if for_operation.is_some()
+                    && let Auth::ApiKey { scopes: Some(required) } = &primary.auth
+                {
+                    let missing: Vec<_> = required
+                        .iter()
+                        .filter(|scope| !scopes.contains(&scope.name))
+                        .map(|scope| scope.name.as_str())
+                        .collect();
+                    if !missing.is_empty() {
+                        return Err(Failure::new(3, "auth", format!("the selected key lacks {}", missing.join(", "))));
+                    }
+                }
+                Ok(
+                    json!({"keySource":source.as_ref().map(auth::KeySource::label),"name":reply.name,"enabled":reply.enabled,"expired":reply.expired,"scopes":scopes}),
+                )
+            }
+            _ => unreachable!("discovery and profiles returned before execution"),
         }
-    })
+    })();
+    result.map_err(|failure| auth::decorate(failure, primary, source.as_ref(), &config))
 }
 fn op_ref<'r>(registry: &'r Registry, words: &[String]) -> Result<(Resolved<'r>, usize), Failure> {
     let first = words.first().ok_or_else(|| Failure::usage("an operation name or METHOD and URL is required"))?;

@@ -49,7 +49,7 @@ $ updraft call universes.get-place-universe placeId=1818
 exit 0
 ```
 
-Check that a key works and see what it can do. `auth check` sends the key to `POST /api-keys/v1/introspect`, which answers with scopes such as `{"name":"asset","operations":["read","write"]}` (measured on 2026-10-27). updraft flattens them to `asset:read` and `asset:write`.
+Check that a key works and see what it can do. `call api-keys.introspect` and `auth check` use `Auth::BodyKey { field: "apiKey" }`. The executor supplies the selected key and rejects caller bodies before reading them. `auth check` sends the key to `POST /api-keys/v1/introspect`, which answers with scopes such as `{"name":"asset","operations":["read","write"]}` (measured on 2026-10-27). updraft flattens them to `asset:read` and `asset:write`.
 
 ```console
 $ updraft auth check
@@ -143,6 +143,8 @@ exit 6
 A key never appears in argv. Locally, profiles in `%APPDATA%\updraft\config.toml` name an environment variable or a file.
 
 ```toml
+default_profile = "assets"
+
 [profiles.assets]
 key_env = "ROBLOX_ASSETS_API_KEY"
 group = 35
@@ -153,7 +155,6 @@ key_env = "ROBLOX_API_KEY"
 [profiles.luau]
 key_file = "C:/Users/Admin/.secrets/roblox-luau.key"
 
-default_profile = "assets"
 ```
 
 Precedence is `--profile`, then `UPDRAFT_PROFILE`, then `UPDRAFT_API_KEY`, then `default_profile`. A profile named explicitly that is missing or empty fails with exit 3. It never falls through to another key, and updraft never retries with a different key after a 401 or 403. Instead, the auth error lists the operation's required scopes and the configured profile names, so the caller can pick one. When the spec declares no scopes for an operation (7 of the 299), `requiredScopes` is `null` and `scopeMetadata` is `"unknown"`, never an empty list. Introspection requires no scopes, so its body-key auth reports `requiredScopes: []` with `scopeMetadata: "declared"`. CI sets one variable.

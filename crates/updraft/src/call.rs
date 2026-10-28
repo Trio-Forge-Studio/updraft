@@ -272,6 +272,13 @@ fn validate(kind: &ValueKind, text: &str) -> Result<(), ()> {
     if valid { Ok(()) } else { Err(()) }
 }
 fn validate_body(op: &Op, body: Option<&BodyInput>) -> Result<(), Failure> {
+    if matches!(op.auth, updraft_registry::Auth::BodyKey { .. }) {
+        return if body.is_none() {
+            Ok(())
+        } else {
+            Err(Failure::usage("the selected key supplies this operation's body; omit --body and --part"))
+        };
+    }
     match (&op.body, body) {
         (None, Some(_)) => Err(Failure::usage("operation declares no request body")),
         (Some(schema), None) if schema.required => Err(Failure::usage("operation requires a body")),
@@ -331,6 +338,9 @@ pub fn parse_pairs(args: &[String]) -> Result<Vec<(String, String)>, Failure> {
         .collect()
 }
 pub fn read_body(op: &Op, body: Option<Source>, parts: Vec<(String, Source)>) -> Result<Option<BodyInput>, Failure> {
+    if matches!(op.auth, updraft_registry::Auth::BodyKey { .. }) && (body.is_some() || !parts.is_empty()) {
+        return Err(Failure::usage("the selected key supplies this operation's body; omit --body and --part"));
+    }
     let inputs = body.iter().chain(parts.iter().map(|(_, v)| v));
     if inputs.filter(|s| matches!(s, Source::Stdin)).count() > 1 {
         return Err(Failure::usage("stdin can be consumed only once"));
