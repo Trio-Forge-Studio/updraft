@@ -448,14 +448,17 @@ fn accepted_upload_deadline_includes_an_inflight_poll() {
     let server = MockServer::start();
     let poll = server.mock(|w, t| {
         w.path("/assets/v1/operations/slow");
-        t.delay(std::time::Duration::from_millis(100)).json_body(json!({"done":false}));
+        t.delay(std::time::Duration::from_secs(5)).json_body(json!({"done":false}));
     });
-    let out = command(&server.base_url())
-        .args(["--deadline", "0.01", "asset", "upload", "--resume", "slow"])
-        .output()
-        .unwrap();
+    let started = std::time::Instant::now();
+    let out =
+        command(&server.base_url()).args(["--deadline", "1", "asset", "upload", "--resume", "slow"]).output().unwrap();
     assert_eq!(code(&out), 8, "a pending operation retains its deadline even while a lookup runs");
     assert_eq!(document(&out)["error"]["resume"], "updraft asset upload --resume slow");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(4),
+        "the client returns before the delayed poll response"
+    );
     poll.assert_calls(1);
 }
 #[test]
@@ -473,4 +476,41 @@ fn lost_download_body_retries_from_an_empty_temporary_file() {
     assert_eq!(std::fs::read(&path).unwrap(), b"complete bytes");
     assert_eq!(server.requests().len(), 3);
     assert!(server.requests()[1..].iter().all(|r| !r.head.to_lowercase().contains("x-api-key:")));
+}
+#[test]
+fn luau_poll_failure_retains_the_get_resume_command() {
+    let path = "universes/1/places/2/versions/3/luau-execution-sessions/s/tasks/t";
+    let server = Server::new(vec![
+        Response::json(json!({"path":path,"state":"QUEUED"})),
+        Response::Body(503, "unavailable".into()),
+        Response::Body(503, "unavailable".into()),
+        Response::Body(503, "unavailable".into()),
+    ]);
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("script.luau");
+    std::fs::write(&file, "return 42").unwrap();
+    let out = command(&server.origin)
+        .args(["luau", "run", file.to_str().unwrap(), "--universe", "1", "--place", "2"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 7);
+    let d = document(&out);
+    assert_eq!(d["error"]["resume"], format!("updraft call GET /cloud/v2/{path}"));
+    assert_eq!(d["error"]["detail"]["path"], path);
+    assert_eq!(server.requests().len(), 4);
+    assert_eq!(server.requests().iter().filter(|r| r.head.starts_with("POST ")).count(), 1);
+}
+#[test]
+fn luau_create_without_a_task_path_is_unknown_and_not_repeated() {
+    let server = Server::new(vec![Response::json(json!({"state":"QUEUED"}))]);
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("script.luau");
+    std::fs::write(&file, "return 42").unwrap();
+    let out = command(&server.origin)
+        .args(["luau", "run", file.to_str().unwrap(), "--universe", "1", "--place", "2"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 5);
+    assert_eq!(document(&out)["error"]["kind"], "outcome_unknown");
+    assert_eq!(server.requests().len(), 1);
 }

@@ -92,15 +92,18 @@ fn upload_then_archive_requires_explicit_approval() {
         .expect("no operation ID; check the group's Creations before uploading again")
         .to_owned();
     let receipt_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../build/live-upload-receipt.json");
-    std::fs::create_dir_all(receipt_path.parent().unwrap()).unwrap();
     let mut receipt = json!({"operation":operation,"assetId":null,"archived":false});
-    let receipt_error = std::fs::write(&receipt_path, serde_json::to_vec_pretty(&receipt).unwrap()).err();
+    let mut receipt_error = std::fs::create_dir_all(receipt_path.parent().unwrap())
+        .and_then(|()| std::fs::write(&receipt_path, serde_json::to_vec_pretty(&receipt).unwrap()))
+        .err();
     let mut asset = None;
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let resumed = success(command().args(["asset", "upload", "--resume", &operation]).output().unwrap());
         asset = resumed["assetId"].as_str().map(str::to_owned);
         let id = asset.as_deref().expect("resume must return an asset ID");
         receipt["assetId"] = json!(id);
+        let updated = std::fs::write(&receipt_path, serde_json::to_vec_pretty(&receipt).unwrap()).err();
+        receipt_error = receipt_error.take().or(updated);
         let d = success(
             command()
                 .args(["call", "assets.get-asset", &format!("assetId={id}"), "readMask=assetType,creationContext"])
@@ -111,7 +114,10 @@ fn upload_then_archive_requires_explicit_approval() {
         assert_eq!(d["creationContext"]["creator"]["groupId"], group);
     }));
     if asset.is_none() {
-        let out = command().args(["asset", "upload", "--resume", &operation]).output().unwrap();
+        let out = command()
+            .args(["asset", "upload", "--resume", &operation])
+            .output()
+            .unwrap_or_else(|_| panic!("cleanup cannot poll operation {operation}; check the group's Creations"));
         let d = document(&out);
         if out.status.success() {
             asset = d["assetId"].as_str().map(str::to_owned);
@@ -121,11 +127,16 @@ fn upload_then_archive_requires_explicit_approval() {
         "cleanup cannot resolve the pending operation; check the group's Creations and build/live-upload-receipt.json",
     );
     receipt["assetId"] = json!(id);
-    let archive = command().args(["call", "assets.archive-asset", &format!("assetId={id}")]).output().unwrap();
+    let archive = command()
+        .args(["call", "assets.archive-asset", &format!("assetId={id}")])
+        .output()
+        .unwrap_or_else(|_| panic!("cleanup cannot start for asset {id}; archive it manually"));
     let archived = document(&archive);
     assert!(archive.status.success(), "cleanup failed for asset {id}; archive it manually: {archived}");
-    let verify =
-        command().args(["call", "assets.get-asset", &format!("assetId={id}"), "readMask=state"]).output().unwrap();
+    let verify = command()
+        .args(["call", "assets.get-asset", &format!("assetId={id}"), "readMask=state"])
+        .output()
+        .unwrap_or_else(|_| panic!("cleanup cannot verify asset {id}; check its archive state manually"));
     let verified = document(&verify);
     assert!(
         verify.status.success(),
@@ -137,7 +148,8 @@ fn upload_then_archive_requires_explicit_approval() {
         "asset {id} cleanup must be verified"
     );
     receipt["archived"] = json!(true);
-    std::fs::write(receipt_path, serde_json::to_vec_pretty(&receipt).unwrap()).unwrap();
+    std::fs::write(receipt_path, serde_json::to_vec_pretty(&receipt).unwrap())
+        .unwrap_or_else(|_| panic!("asset {id} was archived but its receipt could not be written"));
     assert!(receipt_error.is_none(), "the initial operation receipt could not be written; the asset was archived");
     if let Err(panic) = result {
         std::panic::resume_unwind(panic);

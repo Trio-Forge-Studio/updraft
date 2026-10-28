@@ -39,6 +39,9 @@ pub fn run(ex: &Executor<'_>, args: Args) -> Result<Value, Failure> {
         bytes: serde_json::to_vec(&body).expect("a JSON value serializes"),
     };
     let first = ex.send(&Call::new(op, vec![], pairs, Some(input))?)?.json()?;
+    if !first["path"].as_str().is_some_and(|path| !path.is_empty()) {
+        return Err(Failure::unknown("Luau create returned no task path"));
+    }
     let (task, failed) = match ex.finish(op, first) {
         Ok(task) => (task, false),
         Err(f) if f.code == 6 => (f.error["detail"].clone(), true),
