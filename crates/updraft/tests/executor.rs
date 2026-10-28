@@ -74,6 +74,18 @@ fn absent_scope_metadata_is_null_on_401_and_403() {
 }
 #[test]
 fn echoed_key_and_encoded_forms_never_reach_either_stream() {
+    fn collect_strings(value: &serde_json::Value, strings: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(value) => strings.push(value.clone()),
+            serde_json::Value::Array(values) => values.iter().for_each(|value| collect_strings(value, strings)),
+            serde_json::Value::Object(values) => {
+                strings.extend(values.keys().cloned());
+                values.values().for_each(|value| collect_strings(value, strings));
+            }
+            _ => {}
+        }
+    }
+
     let encoded = percent_encoding::utf8_percent_encode(KEY, percent_encoding::NON_ALPHANUMERIC).to_string();
     let mixed = encoded.replace("%2B", "%2b").replace("%2F", "%2f");
     let unicode: String = KEY.chars().map(|c| format!("\\u{:04X}", c as u32)).collect();
@@ -96,6 +108,14 @@ fn echoed_key_and_encoded_forms_never_reach_either_stream() {
                 assert!(!combined.contains(form), "secret form must be redacted for HTTP {status}");
             }
             let d = document(&out);
+            let mut decoded = vec![String::from_utf8_lossy(&out.stderr).into_owned()];
+            collect_strings(&d, &mut decoded);
+            for form in [KEY, &encoded, &mixed, &unicode, &slash] {
+                assert!(
+                    decoded.iter().all(|text| !text.contains(form)),
+                    "decoded JSON strings and stderr must redact every secret form for HTTP {status}"
+                );
+            }
             if status >= 400 {
                 assert_eq!(d["error"]["message"], format!("HTTP {status}"));
                 assert!(!combined.contains("signature=private"), "signed queries are stripped from errors");
