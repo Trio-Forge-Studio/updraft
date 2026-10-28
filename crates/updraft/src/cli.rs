@@ -1,5 +1,4 @@
 use clap::{Args, Parser, Subcommand};
-use std::path::PathBuf;
 #[derive(Parser)]
 #[command(name = "updraft", version, about = "Roblox Open Cloud. One JSON document per command.")]
 pub struct Cli {
@@ -58,8 +57,6 @@ pub struct CallArgs {
     pub max_items: Option<usize>,
     #[arg(long)]
     pub no_wait: bool,
-    #[arg(long)]
-    pub out: Option<PathBuf>,
 }
 #[derive(Subcommand)]
 pub enum AuthCommand {

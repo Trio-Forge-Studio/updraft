@@ -27,8 +27,6 @@ pub enum Reply {
     Saved(u64),
     Redirect(String),
     Json(Value),
-    Text(String),
-    Bytes(Vec<u8>),
     Empty,
 }
 impl Reply {
@@ -37,20 +35,6 @@ impl Reply {
             Self::Saved(_) | Self::Redirect(_) => Err(Failure::unavailable("unexpected download response")),
             Self::Json(v) => Ok(v),
             Self::Empty => Ok(Value::Null),
-            _ => Err(Failure::unavailable("expected a JSON response")),
-        }
-    }
-    pub fn document(self, out: Option<&std::path::Path>) -> Result<Value, Failure> {
-        match self {
-            Self::Saved(_) | Self::Redirect(_) => Err(Failure::unavailable("unexpected download response")),
-            Self::Json(v) => Ok(v),
-            Self::Empty => Ok(Value::Null),
-            Self::Text(s) => Ok(json!({"text":s})),
-            Self::Bytes(bytes) => {
-                let path = out.ok_or_else(|| Failure::unavailable("binary response requires --out"))?;
-                std::fs::write(path, &bytes).map_err(|_| Failure::usage("cannot write the output file"))?;
-                Ok(json!({"file":path,"bytes":bytes.len()}))
-            }
         }
     }
 }
@@ -155,6 +139,7 @@ impl<'a> Executor<'a> {
                                 if (200..300).contains(&status)
                                     && matches!(op.response, Payload::Json { .. })
                                     && status != 204
+                                    && !body.is_empty()
                                     && serde_json::from_slice::<Value>(&body).is_err()
                                 {
                                     Attempt::Transport {
@@ -199,10 +184,9 @@ impl<'a> Executor<'a> {
                             .map(Reply::Json)
                             .map_err(|_| Failure::unavailable("invalid JSON response")),
                         Payload::Json { .. } | Payload::Empty => Ok(Reply::Empty),
-                        Payload::Text => String::from_utf8(body)
-                            .map(Reply::Text)
-                            .map_err(|_| Failure::unavailable("response text is not UTF-8")),
-                        Payload::Binary => Ok(Reply::Bytes(body)),
+                        Payload::Text | Payload::Binary => {
+                            Err(Failure::unavailable("unsupported registry response payload"))
+                        }
                     };
                 }
                 Verdict::Retry { after_seconds, history: next } => {

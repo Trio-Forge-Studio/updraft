@@ -132,7 +132,7 @@ fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
                 if !args.no_wait && call.op().completion.is_some() {
                     executor.finish(call.op(), reply.json()?)
                 } else {
-                    reply.document(args.out.as_deref())
+                    reply.json()
                 }
             }
         }
@@ -211,9 +211,15 @@ fn op_ref<'r>(registry: &'r Registry, words: &[String]) -> Result<(Resolved<'r>,
     } else {
         (OpRef::Name(first.clone()), 1)
     };
-    let mut resolved = registry
-        .resolve(&reference)
-        .map_err(|error| Failure::usage(format!("operation resolution failed: {error:?}")))?;
+    let mut resolved = registry.resolve(&reference).map_err(|error| match error {
+        updraft_registry::ResolveError::Unknown { suggestions } => {
+            Failure::usage(format!("unknown operation {}", words[..used].join(" ")))
+                .with("suggestions", json!(suggestions))
+        }
+        updraft_registry::ResolveError::Ambiguous { names } => {
+            Failure::usage("ambiguous operation").with("suggestions", json!(names))
+        }
+    })?;
     if matches!(reference, OpRef::Url { .. }) {
         for (name, value) in &mut resolved.preset {
             if resolved.op.params.iter().any(|p| p.location == updraft_registry::Location::Path && p.name == *name) {

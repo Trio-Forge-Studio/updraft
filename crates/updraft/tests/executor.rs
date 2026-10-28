@@ -371,3 +371,49 @@ fn an_overfull_default_page_is_refetched_with_a_safe_size() {
     first.assert_calls(1);
     resized.assert_calls(1);
 }
+
+#[test]
+fn empty_success_bodies_are_not_retried_for_any_declared_payload() {
+    for (method, path, name, pairs) in [
+        (POST, "/assets/v1/assets/42:archive", "assets.archive-asset", vec!["assetId=42"]),
+        (
+            httpmock::Method::DELETE,
+            "/cloud/v2/universes/1/data-stores/store/entries/entry",
+            "cloud.delete-universe-data-store-entry",
+            vec!["universe_id=1", "data_store_id=store", "entry_id=entry"],
+        ),
+    ] {
+        let server = MockServer::start();
+        let m = server.mock(|w, t| {
+            w.method(method).path(path);
+            t.status(200).body("");
+        });
+        let out = command(&server.base_url()).args(["call", name]).args(pairs).output().unwrap();
+        assert_eq!(code(&out), 0, "empty HTTP 200 is success: {}", document(&out));
+        assert!(document(&out).is_null(), "an empty success prints null");
+        m.assert_calls(1);
+    }
+}
+
+#[test]
+fn unknown_operation_has_a_plain_message_and_structured_suggestions() {
+    let out = command("http://127.0.0.1:1").args(["call", "assets.nope"]).output().unwrap();
+    assert_eq!(code(&out), 2);
+    let error = &document(&out)["error"];
+    assert_eq!(error["message"], "unknown operation assets.nope");
+    assert_eq!(error["suggestions"].as_array().unwrap().len(), 3);
+}
+
+#[test]
+fn generic_call_rejects_the_removed_output_flag() {
+    let server = MockServer::start();
+    let m = server.mock(|_, t| {
+        t.json_body(json!({}));
+    });
+    let out = command(&server.base_url())
+        .args(["call", "assets.get-asset", "assetId=42", "--out", "unused"])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 2, "only the asset download flow has an output file");
+    m.assert_calls(0);
+}
