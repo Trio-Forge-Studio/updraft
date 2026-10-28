@@ -7,9 +7,36 @@ use updraft_registry::{Body, Completion, Op, Pagination, Payload, RetryPolicy, S
 #[serde(deny_unknown_fields)]
 pub struct Overlay {
     #[serde(default)]
+    pub vocabulary: BTreeMap<String, Vocabulary>,
+    #[serde(default)]
     pub patch: Vec<Patch>,
     #[serde(default)]
     pub add: Vec<Op>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Vocabulary {
+    #[serde(default)]
+    pub drop: Vec<String>,
+    #[serde(default)]
+    pub rename: Vec<Rename>,
+    #[serde(default)]
+    pub exceptions: Vec<NameException>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rename {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NameException {
+    pub name: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Deserialize)]

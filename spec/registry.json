@@ -2,7 +2,7 @@
   "source": {
     "repository": "Roblox/creator-docs",
     "commit": "46be165f526ec23305394ac0c56a95edd2d7f7d9",
-    "sha256": "bcfdc20689cd557cd745c6ee5e0cd82aa970486e1c56f2057845abb1feee6c5a"
+    "sha256": "b845a3438373f16c93b155c4b25a6a7c0535f22ce6f5c4e0c0c77f0bfe4d9718"
   },
   "ops": [
     {
@@ -488,7 +488,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "analytics-alert-control-plane.create-resource-id-alert",
+      "name": "analytics-alert-control-plane.create-alert",
       "key": "POST /analytics-alert-control-plane/v1/resource/{resourceType}/id/{resourceId}/alerts",
       "method": "POST",
       "server": "apis",
@@ -553,7 +553,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "analytics-alert-control-plane.delete-resource-id-alert",
+      "name": "analytics-alert-control-plane.delete-alert",
       "key": "DELETE /analytics-alert-control-plane/v1/resource/{resourceType}/id/{resourceId}/alerts/{alertId}",
       "method": "DELETE",
       "server": "apis",
@@ -609,6 +609,112 @@
       },
       "stability": "experimental",
       "safety": "idempotent"
+    },
+    {
+      "name": "analytics-alert-control-plane.get-alerts",
+      "key": "GET /analytics-alert-control-plane/v1/resource/{resourceType}/id/{resourceId}/alerts",
+      "method": "GET",
+      "server": "apis",
+      "path": "/analytics-alert-control-plane/v1/resource/{resourceType}/id/{resourceId}/alerts",
+      "summary": "Returns the alert configurations for a resource. Optionally filter by alert IDs, firing status, severity, or metric name.",
+      "tags": [
+        "Analytics"
+      ],
+      "params": [
+        {
+          "name": "resourceType",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "enum",
+            "values": [
+              "Universe"
+            ]
+          },
+          "description": "The type of resource to query. Currently only `Universe` is supported."
+        },
+        {
+          "name": "resourceId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The numeric ID of the resource (e.g. the universe ID)."
+        },
+        {
+          "name": "ids",
+          "in": "query",
+          "kind": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Optional list of alert IDs to restrict results to. Repeat the parameter for multiple values: `?ids=1&ids=2`. IDs are string-encoded 64-bit integers."
+        },
+        {
+          "name": "firingStatus",
+          "in": "query",
+          "kind": {
+            "type": "enum",
+            "values": [
+              "OK",
+              "Firing"
+            ]
+          },
+          "description": "Optional firing-status filter (`OK` or `Firing`)."
+        },
+        {
+          "name": "severities",
+          "in": "query",
+          "kind": {
+            "type": "array",
+            "items": {
+              "type": "enum",
+              "values": [
+                "SEV_0",
+                "SEV_1",
+                "SEV_2"
+              ]
+            }
+          },
+          "description": "Optional list of severity levels to filter by. Repeat the parameter for multiple values: `?severities=SEV_0&severities=SEV_1`."
+        },
+        {
+          "name": "metrics",
+          "in": "query",
+          "kind": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Optional list of metric names to filter by (exact match, case-sensitive). Repeat the parameter for multiple values: `?metrics=dau&metrics=mau`."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "name": "AnalyticsAlertControlPlane.Models.AlertDetailResponse"
+          }
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe.analytics.alert:read",
+              "target": "id"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "read"
     },
     {
       "name": "analytics-alert-control-plane.get-incidents",
@@ -717,119 +823,10 @@
         }
       },
       "stability": "experimental",
-      "safety": "read",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
-    },
-    {
-      "name": "analytics-alert-control-plane.get-resource-id-alerts",
-      "key": "GET /analytics-alert-control-plane/v1/resource/{resourceType}/id/{resourceId}/alerts",
-      "method": "GET",
-      "server": "apis",
-      "path": "/analytics-alert-control-plane/v1/resource/{resourceType}/id/{resourceId}/alerts",
-      "summary": "Returns the alert configurations for a resource. Optionally filter by alert IDs, firing status, severity, or metric name.",
-      "tags": [
-        "Analytics"
-      ],
-      "params": [
-        {
-          "name": "resourceType",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "enum",
-            "values": [
-              "Universe"
-            ]
-          },
-          "description": "The type of resource to query. Currently only `Universe` is supported."
-        },
-        {
-          "name": "resourceId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The numeric ID of the resource (e.g. the universe ID)."
-        },
-        {
-          "name": "ids",
-          "in": "query",
-          "kind": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "description": "Optional list of alert IDs to restrict results to. Repeat the parameter for multiple values: `?ids=1&ids=2`. IDs are string-encoded 64-bit integers."
-        },
-        {
-          "name": "firingStatus",
-          "in": "query",
-          "kind": {
-            "type": "enum",
-            "values": [
-              "OK",
-              "Firing"
-            ]
-          },
-          "description": "Optional firing-status filter (`OK` or `Firing`)."
-        },
-        {
-          "name": "severities",
-          "in": "query",
-          "kind": {
-            "type": "array",
-            "items": {
-              "type": "enum",
-              "values": [
-                "SEV_0",
-                "SEV_1",
-                "SEV_2"
-              ]
-            }
-          },
-          "description": "Optional list of severity levels to filter by. Repeat the parameter for multiple values: `?severities=SEV_0&severities=SEV_1`."
-        },
-        {
-          "name": "metrics",
-          "in": "query",
-          "kind": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "description": "Optional list of metric names to filter by (exact match, case-sensitive). Repeat the parameter for multiple values: `?metrics=dau&metrics=mau`."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "array",
-          "items": {
-            "type": "ref",
-            "name": "AnalyticsAlertControlPlane.Models.AlertDetailResponse"
-          }
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe.analytics.alert:read",
-              "target": "id"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
       "safety": "read"
     },
     {
-      "name": "analytics-alert-control-plane.update-resource-id-alert",
+      "name": "analytics-alert-control-plane.update-alert",
       "key": "PATCH /analytics-alert-control-plane/v1/resource/{resourceType}/id/{resourceId}/alerts/{alertId}",
       "method": "PATCH",
       "server": "apis",
@@ -903,7 +900,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "analytics-benchmark.query-universe-benchmarks",
+      "name": "analytics-benchmark.query-benchmarks",
       "key": "POST /analytics-benchmark/v1/universes/{universeId}/benchmarks",
       "method": "POST",
       "server": "apis",
@@ -1014,7 +1011,7 @@
       }
     },
     {
-      "name": "analytics-query.get-universe-operations-metric",
+      "name": "analytics-query.get-operations-metric",
       "key": "GET /analytics-query-api/v1/universes/{universeId}/operations/metrics/{operationId}",
       "method": "GET",
       "server": "apis",
@@ -1068,7 +1065,7 @@
       }
     },
     {
-      "name": "analytics-query.query-universe-dimension-values",
+      "name": "analytics-query.query-dimension-values",
       "key": "POST /analytics-query-api/v1/universes/{universeId}/dimension-values",
       "method": "POST",
       "server": "apis",
@@ -1128,7 +1125,7 @@
       ]
     },
     {
-      "name": "analytics-query.query-universe-metrics",
+      "name": "analytics-query.query-metrics",
       "key": "POST /analytics-query-api/v1/universes/{universeId}/metrics",
       "method": "POST",
       "server": "apis",
@@ -1231,7 +1228,7 @@
       ]
     },
     {
-      "name": "asset-delivery.get-asset-id",
+      "name": "asset-delivery.get-asset",
       "key": "GET /asset-delivery-api/v1/assetId/{assetId}",
       "method": "GET",
       "server": "apis",
@@ -1400,7 +1397,7 @@
       ]
     },
     {
-      "name": "asset-delivery.get-asset-id-version",
+      "name": "asset-delivery.get-asset-version",
       "key": "GET /asset-delivery-api/v1/assetId/{assetId}/version/{versionNumber}",
       "method": "GET",
       "server": "apis",
@@ -1565,7 +1562,7 @@
       ]
     },
     {
-      "name": "asset-permissions.grant-assets-permissions",
+      "name": "asset-permissions.grant",
       "key": "PATCH /asset-permissions-api/v1/assets/permissions",
       "method": "PATCH",
       "server": "apis",
@@ -1608,7 +1605,7 @@
       ]
     },
     {
-      "name": "assets.archive-asset",
+      "name": "assets.archive",
       "key": "POST /assets/v1/assets/{assetId}:archive",
       "operation_id": "Assets_ArchiveAsset",
       "method": "POST",
@@ -1653,7 +1650,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "assets.create-asset",
+      "name": "assets.create",
       "key": "POST /assets/v1/assets",
       "operation_id": "Assets_CreateAsset",
       "method": "POST",
@@ -1716,7 +1713,7 @@
       }
     },
     {
-      "name": "assets.get-asset",
+      "name": "assets.get",
       "key": "GET /assets/v1/assets/{assetId}",
       "operation_id": "Assets_GetAsset",
       "method": "GET",
@@ -1751,57 +1748,6 @@
         "shape": {
           "type": "ref",
           "name": "Asset"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "asset:read"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read"
-    },
-    {
-      "name": "assets.get-asset-version",
-      "key": "GET /assets/v1/assets/{assetId}/versions/{versionNumber}",
-      "operation_id": "Assets_GetAssetVersion",
-      "method": "GET",
-      "server": "apis",
-      "path": "/assets/v1/assets/{assetId}/versions/{versionNumber}",
-      "summary": "Get Asset Version",
-      "description": "Retrieve a specific asset version by the asset ID and the version number.",
-      "tags": [
-        "Assets"
-      ],
-      "params": [
-        {
-          "name": "assetId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The unique identifier of the asset."
-        },
-        {
-          "name": "versionNumber",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The version number."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "AssetVersion"
         }
       },
       "auth": {
@@ -1862,7 +1808,58 @@
       }
     },
     {
-      "name": "assets.list-asset-versions",
+      "name": "assets.get-version",
+      "key": "GET /assets/v1/assets/{assetId}/versions/{versionNumber}",
+      "operation_id": "Assets_GetAssetVersion",
+      "method": "GET",
+      "server": "apis",
+      "path": "/assets/v1/assets/{assetId}/versions/{versionNumber}",
+      "summary": "Get Asset Version",
+      "description": "Retrieve a specific asset version by the asset ID and the version number.",
+      "tags": [
+        "Assets"
+      ],
+      "params": [
+        {
+          "name": "assetId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The unique identifier of the asset."
+        },
+        {
+          "name": "versionNumber",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The version number."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "AssetVersion"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "asset:read"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read"
+    },
+    {
+      "name": "assets.list-versions",
       "key": "GET /assets/v1/assets/{assetId}/versions",
       "operation_id": "listAssetVersions",
       "method": "GET",
@@ -1946,7 +1943,7 @@
       ]
     },
     {
-      "name": "assets.restore-asset",
+      "name": "assets.restore",
       "key": "POST /assets/v1/assets/{assetId}:restore",
       "operation_id": "Assets_RestoreAsset",
       "method": "POST",
@@ -1991,7 +1988,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "assets.rollback-asset-versions",
+      "name": "assets.rollback-version",
       "key": "POST /assets/v1/assets/{assetId}/versions:rollback",
       "operation_id": "Assets_RollbackAssetVersion",
       "method": "POST",
@@ -2048,10 +2045,13 @@
         }
       },
       "stability": "beta",
-      "safety": "unsafe"
+      "safety": "unsafe",
+      "patches": [
+        "The collection action restores one version selected in the body, rather than rolling back multiple versions."
+      ]
     },
     {
-      "name": "assets.update-asset",
+      "name": "assets.update",
       "key": "PATCH /assets/v1/assets/{assetId}",
       "operation_id": "Assets_UpdateAsset",
       "method": "PATCH",
@@ -2133,7 +2133,7 @@
       }
     },
     {
-      "name": "badges.create-universe-badge",
+      "name": "badges.create",
       "key": "POST /legacy-badges/v1/universes/{universeId}/badges",
       "method": "POST",
       "server": "apis",
@@ -2220,7 +2220,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "badges.update-badge",
+      "name": "badges.update",
       "key": "PATCH /legacy-badges/v1/badges/{badgeId}",
       "method": "PATCH",
       "server": "apis",
@@ -2276,7 +2276,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "creator-configs.calculate-mde-experimentation-experiments",
+      "name": "creator-configs.calculate-mde-experiments",
       "key": "POST /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments:calculateMde",
       "operation_id": "PublicExperimentation_CalculateExperimentMde",
       "method": "POST",
@@ -2329,7 +2329,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "creator-configs.complete-experimentation-universe-experiment",
+      "name": "creator-configs.complete-experiment",
       "key": "POST /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}:complete",
       "operation_id": "PublicExperimentation_CompleteExperiment",
       "method": "POST",
@@ -2389,7 +2389,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "creator-configs.create-experimentation-universe-experiment",
+      "name": "creator-configs.create-experiment",
       "key": "POST /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments",
       "operation_id": "PublicExperimentation_CreateExperiment",
       "method": "POST",
@@ -2557,107 +2557,7 @@
       ]
     },
     {
-      "name": "creator-configs.get-configs-universe-repository",
-      "key": "GET /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}",
-      "operation_id": "CreatorConfigsPublicApi_GetConfigRepositoryValues",
-      "method": "GET",
-      "server": "apis",
-      "path": "/creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}",
-      "summary": "Gets published config values without metadata.",
-      "description": "Returns the latest published config values without metadata and decorators. This response can be used as a direct copy-and-paste to the draft update endpoints.",
-      "tags": [
-        "Configs"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "repository",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "InExperienceConfig"
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "ConfigRepositoryValues"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read"
-    },
-    {
-      "name": "creator-configs.get-experimentation-experiment-stats",
-      "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}/stats",
-      "operation_id": "PublicExperimentation_GetExperimentStats",
-      "method": "GET",
-      "server": "apis",
-      "path": "/creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}/stats",
-      "summary": "Gets diagnostic stats for an experiment.",
-      "tags": [
-        "Experiments"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "experimentId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          }
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "GetExperimentStatsResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "safety": "read"
-    },
-    {
-      "name": "creator-configs.get-experimentation-universe-experiment",
+      "name": "creator-configs.get-experiment",
       "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}",
       "operation_id": "PublicExperimentation_GetExperiment",
       "method": "GET",
@@ -2707,7 +2607,56 @@
       "safety": "read"
     },
     {
-      "name": "creator-configs.get-experimentation-universe-operation",
+      "name": "creator-configs.get-experiment-stats",
+      "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}/stats",
+      "operation_id": "PublicExperimentation_GetExperimentStats",
+      "method": "GET",
+      "server": "apis",
+      "path": "/creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}/stats",
+      "summary": "Gets diagnostic stats for an experiment.",
+      "tags": [
+        "Experiments"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "experimentId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "GetExperimentStatsResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "safety": "read"
+    },
+    {
+      "name": "creator-configs.get-operation",
       "key": "GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/operations/{operationId}",
       "operation_id": "PublicExperimentation_GetExperimentOperationStatus",
       "method": "GET",
@@ -2754,6 +2703,57 @@
         }
       },
       "stability": "experimental",
+      "safety": "read"
+    },
+    {
+      "name": "creator-configs.get-repository",
+      "key": "GET /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}",
+      "operation_id": "CreatorConfigsPublicApi_GetConfigRepositoryValues",
+      "method": "GET",
+      "server": "apis",
+      "path": "/creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}",
+      "summary": "Gets published config values without metadata.",
+      "description": "Returns the latest published config values without metadata and decorators. This response can be used as a direct copy-and-paste to the draft update endpoints.",
+      "tags": [
+        "Configs"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "repository",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "InExperienceConfig"
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "ConfigRepositoryValues"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
       "safety": "read"
     },
     {
@@ -3266,7 +3266,7 @@
       ]
     },
     {
-      "name": "creator-configs.schedule-experimentation-universe-experiment",
+      "name": "creator-configs.schedule-experiment",
       "key": "POST /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}:schedule",
       "operation_id": "PublicExperimentation_ScheduleExperiment",
       "method": "POST",
@@ -3327,7 +3327,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "creator-configs.start-experimentation-universe-experiment",
+      "name": "creator-configs.start-experiment",
       "key": "POST /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}:start",
       "operation_id": "PublicExperimentation_StartExperiment",
       "method": "POST",
@@ -3377,7 +3377,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "creator-configs.update-experimentation-universe-experiment",
+      "name": "creator-configs.update-experiment",
       "key": "PATCH /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}",
       "operation_id": "PublicExperimentation_UpdateExperiment",
       "method": "PATCH",
@@ -3534,9 +3534,6 @@
           "scopes": [
             {
               "name": "creator-store-product:write"
-            },
-            {
-              "name": "creator-store-product:write"
             }
           ]
         }
@@ -3577,9 +3574,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "creator-store-product:read"
-            },
             {
               "name": "creator-store-product:read"
             }
@@ -3649,9 +3643,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "creator-store-product:write"
-            },
             {
               "name": "creator-store-product:write"
             }
@@ -4492,9 +4483,6 @@
           "scopes": [
             {
               "name": "universe-datastores.objects:create"
-            },
-            {
-              "name": "universe-datastores.objects:create"
             }
           ]
         }
@@ -4574,9 +4562,6 @@
           "scopes": [
             {
               "name": "universe-datastores.objects:create"
-            },
-            {
-              "name": "universe-datastores.objects:create"
             }
           ]
         }
@@ -4626,9 +4611,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.control:delete"
-            },
             {
               "name": "universe-datastores.control:delete"
             }
@@ -4685,9 +4667,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.objects:delete"
-            },
             {
               "name": "universe-datastores.objects:delete"
             }
@@ -4755,9 +4734,6 @@
           "scopes": [
             {
               "name": "universe-datastores.objects:delete"
-            },
-            {
-              "name": "universe-datastores.objects:delete"
             }
           ]
         }
@@ -4816,9 +4792,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.objects:read"
-            },
             {
               "name": "universe-datastores.objects:read"
             }
@@ -4890,9 +4863,6 @@
           "scopes": [
             {
               "name": "universe-datastores.objects:read"
-            },
-            {
-              "name": "universe-datastores.objects:read"
             }
           ]
         }
@@ -4962,12 +4932,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.objects:create"
-            },
-            {
-              "name": "universe-datastores.objects:update"
-            },
             {
               "name": "universe-datastores.objects:create"
             },
@@ -5056,12 +5020,6 @@
             },
             {
               "name": "universe-datastores.objects:update"
-            },
-            {
-              "name": "universe-datastores.objects:create"
-            },
-            {
-              "name": "universe-datastores.objects:update"
             }
           ]
         }
@@ -5134,9 +5092,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.control:list"
-            },
             {
               "name": "universe-datastores.control:list"
             }
@@ -5228,9 +5183,6 @@
           "scopes": [
             {
               "name": "universe-datastores.objects:list"
-            },
-            {
-              "name": "universe-datastores.objects:list"
             }
           ]
         }
@@ -5319,9 +5271,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.versions:list"
-            },
             {
               "name": "universe-datastores.versions:list"
             }
@@ -5420,9 +5369,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.objects:list"
-            },
             {
               "name": "universe-datastores.objects:list"
             }
@@ -5524,9 +5470,6 @@
           "scopes": [
             {
               "name": "universe-datastores.versions:list"
-            },
-            {
-              "name": "universe-datastores.versions:list"
             }
           ]
         }
@@ -5584,9 +5527,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.control:snapshot"
-            },
             {
               "name": "universe-datastores.control:snapshot"
             }
@@ -5649,9 +5589,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.control:delete"
-            },
             {
               "name": "universe-datastores.control:delete"
             }
@@ -5731,9 +5668,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe-datastores.objects:update"
-            },
             {
               "name": "universe-datastores.objects:update"
             }
@@ -5824,9 +5758,6 @@
           "scopes": [
             {
               "name": "universe-datastores.objects:update"
-            },
-            {
-              "name": "universe-datastores.objects:update"
             }
           ]
         }
@@ -5835,7 +5766,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "develop-v1.activate-universe",
+      "name": "develop.activate-universe",
       "key": "POST /legacy-develop/v1/universes/{universeId}/activate",
       "method": "POST",
       "server": "apis",
@@ -5879,7 +5810,61 @@
       ]
     },
     {
-      "name": "develop-v1.deactivate-universe",
+      "name": "develop.close-teamtest",
+      "key": "DELETE /legacy-develop/v2/teamtest/{placeId}",
+      "method": "DELETE",
+      "server": "apis",
+      "path": "/legacy-develop/v2/teamtest/{placeId}",
+      "summary": "Close a game instance that is being used for team testing",
+      "tags": [
+        "Places",
+        "Team Create"
+      ],
+      "params": [
+        {
+          "name": "placeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The Id of the place we are setting the metadata for."
+        },
+        {
+          "name": "gameId",
+          "in": "query",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "the Guid of the game instance System.Guid"
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-team-collaboration:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+      ]
+    },
+    {
+      "name": "develop.deactivate-universe",
       "key": "POST /legacy-develop/v1/universes/{universeId}/deactivate",
       "method": "POST",
       "server": "apis",
@@ -5923,7 +5908,7 @@
       ]
     },
     {
-      "name": "develop-v1.get-universe-permissions",
+      "name": "develop.get-permissions",
       "key": "GET /legacy-develop/v1/universes/{universeId}/permissions",
       "method": "GET",
       "server": "apis",
@@ -5964,7 +5949,7 @@
       "safety": "read"
     },
     {
-      "name": "develop-v1.get-universe-teamcreate",
+      "name": "develop.get-teamcreate",
       "key": "GET /legacy-develop/v1/universes/{universeId}/teamcreate",
       "method": "GET",
       "server": "apis",
@@ -6006,7 +5991,7 @@
       "safety": "read"
     },
     {
-      "name": "develop-v1.get-universes-multiget-permissions",
+      "name": "develop.get-universes-multiget-permissions",
       "key": "GET /legacy-develop/v1/universes/multiget/permissions",
       "method": "GET",
       "server": "apis",
@@ -6051,7 +6036,7 @@
       "safety": "read"
     },
     {
-      "name": "develop-v1.get-universes-multiget-teamcreate",
+      "name": "develop.get-universes-multiget-teamcreate",
       "key": "GET /legacy-develop/v1/universes/multiget/teamcreate",
       "method": "GET",
       "server": "apis",
@@ -6096,7 +6081,7 @@
       "safety": "read"
     },
     {
-      "name": "develop-v1.get-user-groups-canmanage",
+      "name": "develop.get-user-groups-canmanage",
       "key": "GET /legacy-develop/v1/user/groups/canmanage",
       "method": "GET",
       "server": "apis",
@@ -6127,7 +6112,7 @@
       "safety": "read"
     },
     {
-      "name": "develop-v1.list-active-session-members",
+      "name": "develop.list-active-session-members",
       "key": "GET /legacy-develop/v1/places/{placeId}/teamcreate/active_session/members",
       "method": "GET",
       "server": "apis",
@@ -6195,7 +6180,7 @@
       ]
     },
     {
-      "name": "develop-v1.remove-universe-teamcreate-memberships",
+      "name": "develop.remove-teamcreate-memberships",
       "key": "DELETE /legacy-develop/v1/universes/{universeId}/teamcreate/memberships",
       "method": "DELETE",
       "server": "apis",
@@ -6251,7 +6236,7 @@
       ]
     },
     {
-      "name": "develop-v1.update-universe-teamcreate",
+      "name": "develop.update-teamcreate",
       "key": "PATCH /legacy-develop/v1/universes/{universeId}/teamcreate",
       "method": "PATCH",
       "server": "apis",
@@ -6305,61 +6290,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "develop.close-teamtest",
-      "key": "DELETE /legacy-develop/v2/teamtest/{placeId}",
-      "method": "DELETE",
-      "server": "apis",
-      "path": "/legacy-develop/v2/teamtest/{placeId}",
-      "summary": "Close a game instance that is being used for team testing",
-      "tags": [
-        "Places",
-        "Team Create"
-      ],
-      "params": [
-        {
-          "name": "placeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The Id of the place we are setting the metadata for."
-        },
-        {
-          "name": "gameId",
-          "in": "query",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "the Guid of the game instance System.Guid"
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-team-collaboration:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "idempotent",
-      "patches": [
-        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
-      ]
-    },
-    {
-      "name": "developer-products.create-universe-developer-product",
+      "name": "developer-products.create",
       "key": "POST /developer-products/v2/universes/{universeId}/developer-products",
       "operation_id": "DeveloperProducts_CreateDeveloperProductV2",
       "method": "POST",
@@ -6453,7 +6384,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "developer-products.get-creator",
+      "name": "developer-products.get",
       "key": "GET /developer-products/v2/universes/{universeId}/developer-products/{productId}/creator",
       "operation_id": "DeveloperProducts_GetDeveloperProductConfigV2",
       "method": "GET",
@@ -6504,7 +6435,7 @@
       "safety": "read"
     },
     {
-      "name": "developer-products.list-creator",
+      "name": "developer-products.list",
       "key": "GET /developer-products/v2/universes/{universeId}/developer-products/creator",
       "operation_id": "DeveloperProducts_ListDeveloperProductConfigsByUniverseV2",
       "method": "GET",
@@ -6568,7 +6499,7 @@
       }
     },
     {
-      "name": "developer-products.update-universe-developer-product",
+      "name": "developer-products.update",
       "key": "PATCH /developer-products/v2/universes/{universeId}/developer-products/{productId}",
       "operation_id": "DeveloperProducts_UpdateDeveloperProductV2",
       "method": "PATCH",
@@ -6672,7 +6603,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "followings-v1.create-user-universe",
+      "name": "followings.create-universe",
       "key": "POST /legacy-followings/v1/users/{userId}/universes/{universeId}",
       "method": "POST",
       "server": "apis",
@@ -6722,7 +6653,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "followings-v1.delete-user-universe",
+      "name": "followings.delete-universe",
       "key": "DELETE /legacy-followings/v1/users/{userId}/universes/{universeId}",
       "method": "DELETE",
       "server": "apis",
@@ -6772,7 +6703,7 @@
       "safety": "idempotent"
     },
     {
-      "name": "followings-v1.get-user-universe-status",
+      "name": "followings.get-status",
       "key": "GET /legacy-followings/v1/users/{userId}/universes/{universeId}/status",
       "method": "GET",
       "server": "apis",
@@ -6822,7 +6753,53 @@
       "safety": "read"
     },
     {
-      "name": "followings-v1.list-user-universes",
+      "name": "followings.list-user-universes",
+      "key": "GET /legacy-followings/v2/users/{userId}/universes",
+      "method": "GET",
+      "server": "apis",
+      "path": "/legacy-followings/v2/users/{userId}/universes",
+      "summary": "Gets all universes followed by a user.",
+      "tags": [
+        "Interactions",
+        "Universes",
+        "Users"
+      ],
+      "params": [
+        {
+          "name": "userId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The user ID."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Followings.Api.Models.FollowsByTypeResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-universe.following:read"
+            }
+          ]
+        }
+      },
+      "stability": "unspecified",
+      "legacy": true,
+      "safety": "read",
+      "patches": [
+        "The summary declares a list even though the response has no pagination token."
+      ]
+    },
+    {
+      "name": "followings.list-user-universes-v1",
       "key": "GET /legacy-followings/v1/users/{userId}/universes",
       "method": "GET",
       "server": "apis",
@@ -6866,57 +6843,11 @@
       "legacy": true,
       "safety": "read",
       "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
+        "The summary declares a list even though the response has no pagination token. Version collisions add the v1 suffix."
       ]
     },
     {
-      "name": "followings.list-user-universes",
-      "key": "GET /legacy-followings/v2/users/{userId}/universes",
-      "method": "GET",
-      "server": "apis",
-      "path": "/legacy-followings/v2/users/{userId}/universes",
-      "summary": "Gets all universes followed by a user.",
-      "tags": [
-        "Interactions",
-        "Universes",
-        "Users"
-      ],
-      "params": [
-        {
-          "name": "userId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The user ID."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Followings.Api.Models.FollowsByTypeResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-universe.following:read"
-            }
-          ]
-        }
-      },
-      "stability": "unspecified",
-      "legacy": true,
-      "safety": "read",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
-    },
-    {
-      "name": "game-internationalization.delete-badge-icon",
+      "name": "game-internationalization.delete-badge-icons",
       "key": "DELETE /legacy-game-internationalization/v1/badges/{badgeId}/icons/language-codes/{languageCode}",
       "method": "DELETE",
       "server": "apis",
@@ -6967,7 +6898,7 @@
       "safety": "idempotent"
     },
     {
-      "name": "game-internationalization.delete-badge-name-description",
+      "name": "game-internationalization.delete-badge-text",
       "key": "DELETE /legacy-game-internationalization/v1/badges/{badgeId}/name-description/language-codes/{languageCode}",
       "method": "DELETE",
       "server": "apis",
@@ -7018,58 +6949,7 @@
       "safety": "idempotent"
     },
     {
-      "name": "game-internationalization.delete-developer-product-icon",
-      "key": "DELETE /legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}",
-      "method": "DELETE",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}",
-      "summary": "Delete a localized icon from a developer product",
-      "tags": [
-        "Developer products",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "developerProductId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The id of the developer product"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of the localized icon to delete"
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-developer-product:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "idempotent"
-    },
-    {
-      "name": "game-internationalization.delete-game-icon",
+      "name": "game-internationalization.delete-icon",
       "key": "DELETE /legacy-game-internationalization/v1/game-icon/games/{gameId}/language-codes/{languageCode}",
       "method": "DELETE",
       "server": "apis",
@@ -7120,7 +7000,7 @@
       "safety": "idempotent"
     },
     {
-      "name": "game-internationalization.delete-game-pass-icon",
+      "name": "game-internationalization.delete-pass-icons",
       "key": "DELETE /legacy-game-internationalization/v1/game-passes/{gamePassId}/icons/language-codes/{languageCode}",
       "method": "DELETE",
       "server": "apis",
@@ -7171,7 +7051,160 @@
       "safety": "idempotent"
     },
     {
-      "name": "game-internationalization.delete-game-thumbnail-image",
+      "name": "game-internationalization.delete-pass-text",
+      "key": "DELETE /legacy-game-internationalization/v1/game-passes/{gamePassId}/name-description/language-codes/{languageCode}",
+      "method": "DELETE",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/game-passes/{gamePassId}/name-description/language-codes/{languageCode}",
+      "summary": "Delete localized name and description of a game pass",
+      "tags": [
+        "Game passes",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "gamePassId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The game pass id"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of the name and description to delete"
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-game-pass:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "idempotent"
+    },
+    {
+      "name": "game-internationalization.delete-product-icons",
+      "key": "DELETE /legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}",
+      "method": "DELETE",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}",
+      "summary": "Delete a localized icon from a developer product",
+      "tags": [
+        "Developer products",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "developerProductId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The id of the developer product"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of the localized icon to delete"
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-developer-product:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "idempotent"
+    },
+    {
+      "name": "game-internationalization.delete-product-text",
+      "key": "DELETE /legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description/language-codes/{languageCode}",
+      "method": "DELETE",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description/language-codes/{languageCode}",
+      "summary": "Delete localized name and description of a developer product",
+      "tags": [
+        "Developer products",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "developerProductId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The developer product id"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of the name and description to delete"
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-developer-product:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "idempotent"
+    },
+    {
+      "name": "game-internationalization.delete-thumbnails-image",
       "key": "DELETE /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/images/{imageId}",
       "method": "DELETE",
       "server": "apis",
@@ -7232,114 +7265,6 @@
       "safety": "idempotent"
     },
     {
-      "name": "game-internationalization.delete-pass-name-description",
-      "key": "DELETE /legacy-game-internationalization/v1/game-passes/{gamePassId}/name-description/language-codes/{languageCode}",
-      "method": "DELETE",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/game-passes/{gamePassId}/name-description/language-codes/{languageCode}",
-      "summary": "Delete localized name and description of a game pass",
-      "tags": [
-        "Game passes",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "gamePassId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The game pass id"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of the name and description to delete"
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-game-pass:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "idempotent",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
-    },
-    {
-      "name": "game-internationalization.delete-product-name-description",
-      "key": "DELETE /legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description/language-codes/{languageCode}",
-      "method": "DELETE",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description/language-codes/{languageCode}",
-      "summary": "Delete localized name and description of a developer product",
-      "tags": [
-        "Developer products",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "developerProductId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The developer product id"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of the name and description to delete"
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-developer-product:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "idempotent",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
-    },
-    {
       "name": "game-internationalization.get-badge-icons",
       "key": "GET /legacy-game-internationalization/v1/badges/{badgeId}/icons",
       "method": "GET",
@@ -7398,7 +7323,7 @@
       "safety": "read"
     },
     {
-      "name": "game-internationalization.get-badge-name-description",
+      "name": "game-internationalization.get-badge-text",
       "key": "GET /legacy-game-internationalization/v1/badges/{badgeId}/name-description",
       "method": "GET",
       "server": "apis",
@@ -7429,64 +7354,6 @@
           "scopes": [
             {
               "name": "legacy-badge:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "read"
-    },
-    {
-      "name": "game-internationalization.get-developer-product-icons",
-      "key": "GET /legacy-game-internationalization/v1/developer-products/{developerProductId}/icons",
-      "method": "GET",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/icons",
-      "summary": "Get all icons for a developer product",
-      "tags": [
-        "Developer products",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "developerProductId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The id of the developer product"
-        },
-        {
-          "name": "width",
-          "in": "query",
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The width of the icon to request"
-        },
-        {
-          "name": "height",
-          "in": "query",
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The height of the icon to request"
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.Models.ApiArrayResponse_Roblox.GameInternationalization.Api.GetDeveloperProductIconResponse_"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-developer-product:manage"
             }
           ]
         }
@@ -7535,13 +7402,10 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "read",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "safety": "read"
     },
     {
-      "name": "game-internationalization.get-game-icon-game",
+      "name": "game-internationalization.get-icon",
       "key": "GET /legacy-game-internationalization/v1/game-icon/games/{gameId}",
       "method": "GET",
       "server": "apis",
@@ -7599,7 +7463,7 @@
       "safety": "read"
     },
     {
-      "name": "game-internationalization.get-game-pass-icons",
+      "name": "game-internationalization.get-pass-icons",
       "key": "GET /legacy-game-internationalization/v1/game-passes/{gamePassId}/icons",
       "method": "GET",
       "server": "apis",
@@ -7657,7 +7521,7 @@
       "safety": "read"
     },
     {
-      "name": "game-internationalization.get-pass-name-description",
+      "name": "game-internationalization.get-pass-text",
       "key": "GET /legacy-game-internationalization/v1/game-passes/{gamePassId}/name-description",
       "method": "GET",
       "server": "apis",
@@ -7696,13 +7560,68 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "read",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "safety": "read"
     },
     {
-      "name": "game-internationalization.get-product-name-description",
+      "name": "game-internationalization.get-product-icons",
+      "key": "GET /legacy-game-internationalization/v1/developer-products/{developerProductId}/icons",
+      "method": "GET",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/icons",
+      "summary": "Get all icons for a developer product",
+      "tags": [
+        "Developer products",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "developerProductId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The id of the developer product"
+        },
+        {
+          "name": "width",
+          "in": "query",
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The width of the icon to request"
+        },
+        {
+          "name": "height",
+          "in": "query",
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The height of the icon to request"
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.Models.ApiArrayResponse_Roblox.GameInternationalization.Api.GetDeveloperProductIconResponse_"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-developer-product:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "read"
+    },
+    {
+      "name": "game-internationalization.get-product-text",
       "key": "GET /legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description",
       "method": "GET",
       "server": "apis",
@@ -7741,10 +7660,7 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "read",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "safety": "read"
     },
     {
       "name": "game-internationalization.get-text-translation-history",
@@ -7832,10 +7748,7 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "read",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "safety": "read"
     },
     {
       "name": "game-internationalization.order-thumbnails-images",
@@ -7904,7 +7817,7 @@
       ]
     },
     {
-      "name": "game-internationalization.set-source-language-game",
+      "name": "game-internationalization.set-source-language",
       "key": "PATCH /legacy-game-internationalization/v1/source-language/games/{gameId}",
       "method": "PATCH",
       "server": "apis",
@@ -8148,7 +8061,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "game-internationalization.update-badge-name-description",
+      "name": "game-internationalization.update-badge-text",
       "key": "PATCH /legacy-game-internationalization/v1/badges/{badgeId}/name-description/language-codes/{languageCode}",
       "method": "PATCH",
       "server": "apis",
@@ -8201,130 +8114,6 @@
           "scopes": [
             {
               "name": "legacy-badge:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.update-developer-product-description",
-      "key": "PATCH /legacy-game-internationalization/v1/developer-products/{developerProductId}/description/language-codes/{languageCode}",
-      "method": "PATCH",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/description/language-codes/{languageCode}",
-      "summary": "Update localized description of a developer product",
-      "tags": [
-        "Developer products",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "developerProductId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The developer product id"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of the description to update"
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.GameInternationalization.Api.UpdateDeveloperProductDescriptionRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.GameInternationalization.Api.UpdateDeveloperProductDescriptionResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-developer-product:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.update-developer-product-name",
-      "key": "PATCH /legacy-game-internationalization/v1/developer-products/{developerProductId}/name/language-codes/{languageCode}",
-      "method": "PATCH",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/name/language-codes/{languageCode}",
-      "summary": "Update localized name of a developer product",
-      "tags": [
-        "Developer products",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "developerProductId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The developer product id"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of the name to update"
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.GameInternationalization.Api.UpdateDeveloperProductNameRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.GameInternationalization.Api.UpdateDeveloperProductNameResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-developer-product:manage"
             }
           ]
         }
@@ -8392,137 +8181,10 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
-    },
-    {
-      "name": "game-internationalization.update-game-pass-description",
-      "key": "PATCH /legacy-game-internationalization/v1/game-passes/{gamePassId}/description/language-codes/{languageCode}",
-      "method": "PATCH",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/game-passes/{gamePassId}/description/language-codes/{languageCode}",
-      "summary": "Update localized description of a game pass",
-      "tags": [
-        "Game passes",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "gamePassId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The game pass id"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of description to update"
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.GameInternationalization.Api.UpdateGamePassDescriptionRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.GameInternationalization.Api.UpdateGamePassDescriptionResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-game-pass:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
       "safety": "unsafe"
     },
     {
-      "name": "game-internationalization.update-game-pass-name",
-      "key": "PATCH /legacy-game-internationalization/v1/game-passes/{gamePassId}/name/language-codes/{languageCode}",
-      "method": "PATCH",
-      "server": "apis",
-      "path": "/legacy-game-internationalization/v1/game-passes/{gamePassId}/name/language-codes/{languageCode}",
-      "summary": "Update localized name of a game pass",
-      "tags": [
-        "Game passes",
-        "Localization"
-      ],
-      "params": [
-        {
-          "name": "gamePassId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The game pass id"
-        },
-        {
-          "name": "languageCode",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The language code of the name to update"
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.GameInternationalization.Api.UpdateGamePassNameRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.GameInternationalization.Api.UpdateGamePassNameResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-game-pass:manage"
-            }
-          ]
-        }
-      },
-      "stability": "experimental",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "game-internationalization.update-icon-game",
+      "name": "game-internationalization.update-icon",
       "key": "POST /legacy-game-internationalization/v1/game-icon/games/{gameId}/language-codes/{languageCode}",
       "method": "POST",
       "server": "apis",
@@ -8647,31 +8309,37 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "safety": "unsafe"
     },
     {
-      "name": "game-internationalization.update-name-description-game",
-      "key": "PATCH /legacy-game-internationalization/v1/name-description/games/{gameId}",
+      "name": "game-internationalization.update-pass-description",
+      "key": "PATCH /legacy-game-internationalization/v1/game-passes/{gamePassId}/description/language-codes/{languageCode}",
       "method": "PATCH",
       "server": "apis",
-      "path": "/legacy-game-internationalization/v1/name-description/games/{gameId}",
-      "summary": "Updates a game's name and/or description in multiple languages.",
+      "path": "/legacy-game-internationalization/v1/game-passes/{gamePassId}/description/language-codes/{languageCode}",
+      "summary": "Update localized description of a game pass",
       "tags": [
-        "Localization",
-        "Universes"
+        "Game passes",
+        "Localization"
       ],
       "params": [
         {
-          "name": "gameId",
+          "name": "gamePassId",
           "in": "path",
           "required": true,
           "kind": {
             "type": "integer"
           },
-          "description": "The id of the game."
+          "description": "The game pass id"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of description to update"
         }
       ],
       "body": {
@@ -8681,7 +8349,7 @@
           "content_type": "application/json",
           "shape": {
             "type": "ref",
-            "name": "Roblox.GameInternationalization.Api.UpdateNameDescriptionsRequest"
+            "name": "Roblox.GameInternationalization.Api.UpdateGamePassDescriptionRequest"
           }
         }
       },
@@ -8689,14 +8357,14 @@
         "type": "json",
         "shape": {
           "type": "ref",
-          "name": "Roblox.GameInternationalization.Api.UpdateNameDescriptionsResponse"
+          "name": "Roblox.GameInternationalization.Api.UpdateGamePassDescriptionResponse"
         }
       },
       "auth": {
         "apikey": {
           "scopes": [
             {
-              "name": "legacy-universe:manage"
+              "name": "legacy-game-pass:manage"
             }
           ]
         }
@@ -8774,7 +8442,69 @@
       ]
     },
     {
-      "name": "game-internationalization.update-pass-name-description",
+      "name": "game-internationalization.update-pass-name",
+      "key": "PATCH /legacy-game-internationalization/v1/game-passes/{gamePassId}/name/language-codes/{languageCode}",
+      "method": "PATCH",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/game-passes/{gamePassId}/name/language-codes/{languageCode}",
+      "summary": "Update localized name of a game pass",
+      "tags": [
+        "Game passes",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "gamePassId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The game pass id"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of the name to update"
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.GameInternationalization.Api.UpdateGamePassNameRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.GameInternationalization.Api.UpdateGamePassNameResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-game-pass:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe"
+    },
+    {
+      "name": "game-internationalization.update-pass-text",
       "key": "PATCH /legacy-game-internationalization/v1/game-passes/{gamePassId}/name-description/language-codes/{languageCode}",
       "method": "PATCH",
       "server": "apis",
@@ -8833,10 +8563,69 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "safety": "unsafe"
+    },
+    {
+      "name": "game-internationalization.update-product-description",
+      "key": "PATCH /legacy-game-internationalization/v1/developer-products/{developerProductId}/description/language-codes/{languageCode}",
+      "method": "PATCH",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/description/language-codes/{languageCode}",
+      "summary": "Update localized description of a developer product",
+      "tags": [
+        "Developer products",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "developerProductId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The developer product id"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of the description to update"
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.GameInternationalization.Api.UpdateDeveloperProductDescriptionRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.GameInternationalization.Api.UpdateDeveloperProductDescriptionResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-developer-product:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe"
     },
     {
       "name": "game-internationalization.update-product-icons",
@@ -8907,7 +8696,69 @@
       ]
     },
     {
-      "name": "game-internationalization.update-product-name-description",
+      "name": "game-internationalization.update-product-name",
+      "key": "PATCH /legacy-game-internationalization/v1/developer-products/{developerProductId}/name/language-codes/{languageCode}",
+      "method": "PATCH",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/developer-products/{developerProductId}/name/language-codes/{languageCode}",
+      "summary": "Update localized name of a developer product",
+      "tags": [
+        "Developer products",
+        "Localization"
+      ],
+      "params": [
+        {
+          "name": "developerProductId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The developer product id"
+        },
+        {
+          "name": "languageCode",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The language code of the name to update"
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.GameInternationalization.Api.UpdateDeveloperProductNameRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.GameInternationalization.Api.UpdateDeveloperProductNameResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-developer-product:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe"
+    },
+    {
+      "name": "game-internationalization.update-product-text",
       "key": "PATCH /legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description/language-codes/{languageCode}",
       "method": "PATCH",
       "server": "apis",
@@ -8966,13 +8817,10 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "safety": "unsafe"
     },
     {
-      "name": "game-internationalization.update-supported-languages-game",
+      "name": "game-internationalization.update-supported-languages",
       "key": "PATCH /legacy-game-internationalization/v1/supported-languages/games/{gameId}",
       "method": "PATCH",
       "server": "apis",
@@ -9012,6 +8860,59 @@
         "shape": {
           "type": "ref",
           "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-universe:manage"
+            }
+          ]
+        }
+      },
+      "stability": "experimental",
+      "legacy": true,
+      "safety": "unsafe"
+    },
+    {
+      "name": "game-internationalization.update-text",
+      "key": "PATCH /legacy-game-internationalization/v1/name-description/games/{gameId}",
+      "method": "PATCH",
+      "server": "apis",
+      "path": "/legacy-game-internationalization/v1/name-description/games/{gameId}",
+      "summary": "Updates a game's name and/or description in multiple languages.",
+      "tags": [
+        "Localization",
+        "Universes"
+      ],
+      "params": [
+        {
+          "name": "gameId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The id of the game."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.GameInternationalization.Api.UpdateNameDescriptionsRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.GameInternationalization.Api.UpdateNameDescriptionsResponse"
         }
       },
       "auth": {
@@ -9151,10 +9052,7 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "safety": "unsafe"
     },
     {
       "name": "game-internationalization.upload-thumbnails-image",
@@ -9226,7 +9124,7 @@
       ]
     },
     {
-      "name": "game-passes.create-universe-game-pass",
+      "name": "game-passes.create",
       "key": "POST /game-passes/v1/universes/{universeId}/game-passes",
       "operation_id": "GamePasses_CreateGamePass",
       "method": "POST",
@@ -9320,7 +9218,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "game-passes.get-creator",
+      "name": "game-passes.get",
       "key": "GET /game-passes/v1/universes/{universeId}/game-passes/{gamePassId}/creator",
       "operation_id": "GamePasses_GetGamePassConfig",
       "method": "GET",
@@ -9371,7 +9269,7 @@
       "safety": "read"
     },
     {
-      "name": "game-passes.list-creator",
+      "name": "game-passes.list",
       "key": "GET /game-passes/v1/universes/{universeId}/game-passes/creator",
       "operation_id": "GamePasses_ListGamePassConfigsByUniverse",
       "method": "GET",
@@ -9435,7 +9333,7 @@
       }
     },
     {
-      "name": "game-passes.update-universe-game-pass",
+      "name": "game-passes.update",
       "key": "PATCH /game-passes/v1/universes/{universeId}/game-passes/{gamePassId}",
       "operation_id": "GamePasses_UpdateGamePass",
       "method": "PATCH",
@@ -9589,9 +9487,6 @@
           "scopes": [
             {
               "name": "group:write"
-            },
-            {
-              "name": "group:write"
             }
           ]
         }
@@ -9654,9 +9549,6 @@
           "scopes": [
             {
               "name": "group:write"
-            },
-            {
-              "name": "group:write"
             }
           ]
         }
@@ -9715,9 +9607,6 @@
           "scopes": [
             {
               "name": "group:write"
-            },
-            {
-              "name": "group:write"
             }
           ]
         }
@@ -9764,48 +9653,7 @@
       "safety": "read"
     },
     {
-      "name": "groups.get-group-settings",
-      "key": "GET /legacy-groups/v1/groups/{groupId}/settings",
-      "method": "GET",
-      "server": "apis",
-      "path": "/legacy-groups/v1/groups/{groupId}/settings",
-      "summary": "Gets the Group's settings",
-      "tags": [
-        "Groups"
-      ],
-      "params": [
-        {
-          "name": "groupId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The id of the group the user is in."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Groups.Api.GroupSettingsResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-group:manage"
-            }
-          ]
-        }
-      },
-      "stability": "unspecified",
-      "legacy": true,
-      "safety": "read"
-    },
-    {
-      "name": "groups.get-groups-policy",
+      "name": "groups.get-policy",
       "key": "POST /legacy-groups/v1/groups/policies",
       "method": "POST",
       "server": "apis",
@@ -9901,7 +9749,48 @@
       "safety": "read"
     },
     {
-      "name": "groups.get-user-groups-pending",
+      "name": "groups.get-settings",
+      "key": "GET /legacy-groups/v1/groups/{groupId}/settings",
+      "method": "GET",
+      "server": "apis",
+      "path": "/legacy-groups/v1/groups/{groupId}/settings",
+      "summary": "Gets the Group's settings",
+      "tags": [
+        "Groups"
+      ],
+      "params": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The id of the group the user is in."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Groups.Api.GroupSettingsResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-group:manage"
+            }
+          ]
+        }
+      },
+      "stability": "unspecified",
+      "legacy": true,
+      "safety": "read"
+    },
+    {
+      "name": "groups.get-user-pending",
       "key": "GET /legacy-groups/v1/user/groups/pending",
       "method": "GET",
       "server": "apis",
@@ -9932,272 +9821,7 @@
       "safety": "read"
     },
     {
-      "name": "groups.list-forum-categories",
-      "key": "GET /cloud/v2/groups/{group_id}/forum-categories",
-      "operation_id": "Cloud_ListGroupForumCategories",
-      "method": "GET",
-      "server": "apis",
-      "path": "/cloud/v2/groups/{group_id}/forum-categories",
-      "summary": "List Group Forum Categories",
-      "description": "Lists forum categories in the group. Supports filtering.",
-      "tags": [
-        "Groups"
-      ],
-      "params": [
-        {
-          "name": "group_id",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The group ID."
-        },
-        {
-          "name": "maxPageSize",
-          "in": "query",
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The maximum number of group forum categories to return. The service might return fewer than this value. If unspecified, at most 10 group forum categories are returned. The maximum value is 10 and higher values are set to 10."
-        },
-        {
-          "name": "pageToken",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "A page token, received from a previous call, to retrieve a subsequent page."
-        },
-        {
-          "name": "filter",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "This field may be set in order to filter the resources returned."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "ListGroupForumCategoriesResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "group-forum:read"
-            },
-            {
-              "name": "group-forum:read"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read",
-      "pagination": {
-        "token_param": "pageToken",
-        "size_param": "maxPageSize",
-        "next_field": "nextPageToken",
-        "items_field": "groupForumCategories"
-      }
-    },
-    {
-      "name": "groups.list-forum-comments",
-      "key": "GET /cloud/v2/groups/{group_id}/forum-categories/{forum_category_id}/posts/{post_id}/comments",
-      "operation_id": "Cloud_ListGroupForumComments",
-      "method": "GET",
-      "server": "apis",
-      "path": "/cloud/v2/groups/{group_id}/forum-categories/{forum_category_id}/posts/{post_id}/comments",
-      "summary": "List Group Forum Comments",
-      "description": "Lists forum comments on a group's forum post. Supports filtering.",
-      "tags": [
-        "Groups"
-      ],
-      "params": [
-        {
-          "name": "group_id",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The group ID."
-        },
-        {
-          "name": "forum_category_id",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The forum-category ID."
-        },
-        {
-          "name": "post_id",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The post ID."
-        },
-        {
-          "name": "maxPageSize",
-          "in": "query",
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The maximum number of group forum comments to return. The service might return fewer than this value. If unspecified, at most 10 group forum comments are returned. The maximum value is 100 and higher values are set to 100."
-        },
-        {
-          "name": "pageToken",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "A page token, received from a previous call, to retrieve a subsequent page."
-        },
-        {
-          "name": "filter",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "This field may be set in order to filter the resources returned."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "ListGroupForumCommentsResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "group-forum:read"
-            },
-            {
-              "name": "group-forum:read"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read",
-      "pagination": {
-        "token_param": "pageToken",
-        "size_param": "maxPageSize",
-        "next_field": "nextPageToken",
-        "items_field": "groupForumComments"
-      }
-    },
-    {
-      "name": "groups.list-forum-posts",
-      "key": "GET /cloud/v2/groups/{group_id}/forum-categories/{forum_category_id}/posts",
-      "operation_id": "Cloud_ListGroupForumPosts",
-      "method": "GET",
-      "server": "apis",
-      "path": "/cloud/v2/groups/{group_id}/forum-categories/{forum_category_id}/posts",
-      "summary": "List Group Forum Posts",
-      "description": "Lists forum posts in the group's forum category. Supports filtering.",
-      "tags": [
-        "Groups"
-      ],
-      "params": [
-        {
-          "name": "group_id",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The group ID."
-        },
-        {
-          "name": "forum_category_id",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The forum-category ID."
-        },
-        {
-          "name": "maxPageSize",
-          "in": "query",
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The maximum number of group forum posts to return. The service might return fewer than this value. If unspecified, at most 10 group forum posts are returned. The maximum value is 100 and higher values are set to 100."
-        },
-        {
-          "name": "pageToken",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "A page token, received from a previous call, to retrieve a subsequent page."
-        },
-        {
-          "name": "filter",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "This field may be set in order to filter the resources returned."
-        },
-        {
-          "name": "view",
-          "in": "query",
-          "kind": {
-            "type": "enum",
-            "values": [
-              "VIEW_UNSPECIFIED",
-              "FULL",
-              "FULL_WITH_FIRST_COMMENT"
-            ]
-          },
-          "description": "The view in which to retrieve the group forum post."
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "ListGroupForumPostsResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "group-forum:read"
-            },
-            {
-              "name": "group-forum:read"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read",
-      "pagination": {
-        "token_param": "pageToken",
-        "size_param": "maxPageSize",
-        "next_field": "nextPageToken",
-        "items_field": "groupForumPosts"
-      }
-    },
-    {
-      "name": "groups.list-group-audit-log",
+      "name": "groups.list-audit-log",
       "key": "GET /legacy-groups/v1/groups/{groupId}/audit-log",
       "method": "GET",
       "server": "apis",
@@ -10376,6 +10000,262 @@
       }
     },
     {
+      "name": "groups.list-forum-categories",
+      "key": "GET /cloud/v2/groups/{group_id}/forum-categories",
+      "operation_id": "Cloud_ListGroupForumCategories",
+      "method": "GET",
+      "server": "apis",
+      "path": "/cloud/v2/groups/{group_id}/forum-categories",
+      "summary": "List Group Forum Categories",
+      "description": "Lists forum categories in the group. Supports filtering.",
+      "tags": [
+        "Groups"
+      ],
+      "params": [
+        {
+          "name": "group_id",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The group ID."
+        },
+        {
+          "name": "maxPageSize",
+          "in": "query",
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The maximum number of group forum categories to return. The service might return fewer than this value. If unspecified, at most 10 group forum categories are returned. The maximum value is 10 and higher values are set to 10."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "A page token, received from a previous call, to retrieve a subsequent page."
+        },
+        {
+          "name": "filter",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "This field may be set in order to filter the resources returned."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "ListGroupForumCategoriesResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "group-forum:read"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read",
+      "pagination": {
+        "token_param": "pageToken",
+        "size_param": "maxPageSize",
+        "next_field": "nextPageToken",
+        "items_field": "groupForumCategories"
+      }
+    },
+    {
+      "name": "groups.list-forum-comments",
+      "key": "GET /cloud/v2/groups/{group_id}/forum-categories/{forum_category_id}/posts/{post_id}/comments",
+      "operation_id": "Cloud_ListGroupForumComments",
+      "method": "GET",
+      "server": "apis",
+      "path": "/cloud/v2/groups/{group_id}/forum-categories/{forum_category_id}/posts/{post_id}/comments",
+      "summary": "List Group Forum Comments",
+      "description": "Lists forum comments on a group's forum post. Supports filtering.",
+      "tags": [
+        "Groups"
+      ],
+      "params": [
+        {
+          "name": "group_id",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The group ID."
+        },
+        {
+          "name": "forum_category_id",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The forum-category ID."
+        },
+        {
+          "name": "post_id",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The post ID."
+        },
+        {
+          "name": "maxPageSize",
+          "in": "query",
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The maximum number of group forum comments to return. The service might return fewer than this value. If unspecified, at most 10 group forum comments are returned. The maximum value is 100 and higher values are set to 100."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "A page token, received from a previous call, to retrieve a subsequent page."
+        },
+        {
+          "name": "filter",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "This field may be set in order to filter the resources returned."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "ListGroupForumCommentsResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "group-forum:read"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read",
+      "pagination": {
+        "token_param": "pageToken",
+        "size_param": "maxPageSize",
+        "next_field": "nextPageToken",
+        "items_field": "groupForumComments"
+      }
+    },
+    {
+      "name": "groups.list-forum-posts",
+      "key": "GET /cloud/v2/groups/{group_id}/forum-categories/{forum_category_id}/posts",
+      "operation_id": "Cloud_ListGroupForumPosts",
+      "method": "GET",
+      "server": "apis",
+      "path": "/cloud/v2/groups/{group_id}/forum-categories/{forum_category_id}/posts",
+      "summary": "List Group Forum Posts",
+      "description": "Lists forum posts in the group's forum category. Supports filtering.",
+      "tags": [
+        "Groups"
+      ],
+      "params": [
+        {
+          "name": "group_id",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The group ID."
+        },
+        {
+          "name": "forum_category_id",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The forum-category ID."
+        },
+        {
+          "name": "maxPageSize",
+          "in": "query",
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The maximum number of group forum posts to return. The service might return fewer than this value. If unspecified, at most 10 group forum posts are returned. The maximum value is 100 and higher values are set to 100."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "A page token, received from a previous call, to retrieve a subsequent page."
+        },
+        {
+          "name": "filter",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "This field may be set in order to filter the resources returned."
+        },
+        {
+          "name": "view",
+          "in": "query",
+          "kind": {
+            "type": "enum",
+            "values": [
+              "VIEW_UNSPECIFIED",
+              "FULL",
+              "FULL_WITH_FIRST_COMMENT"
+            ]
+          },
+          "description": "The view in which to retrieve the group forum post."
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "ListGroupForumPostsResponse"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "group-forum:read"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read",
+      "pagination": {
+        "token_param": "pageToken",
+        "size_param": "maxPageSize",
+        "next_field": "nextPageToken",
+        "items_field": "groupForumPosts"
+      }
+    },
+    {
       "name": "groups.list-join-requests",
       "key": "GET /cloud/v2/groups/{group_id}/join-requests",
       "operation_id": "Cloud_ListGroupJoinRequests",
@@ -10432,9 +10312,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "group:read"
-            },
             {
               "name": "group:read"
             }
@@ -10583,7 +10460,7 @@
       }
     },
     {
-      "name": "groups.set-group-status",
+      "name": "groups.set-status",
       "key": "PATCH /legacy-groups/v1/groups/{groupId}/status",
       "method": "PATCH",
       "server": "apis",
@@ -10692,9 +10569,6 @@
           "scopes": [
             {
               "name": "group:write"
-            },
-            {
-              "name": "group:write"
             }
           ]
         }
@@ -10703,7 +10577,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "groups.update-group-description",
+      "name": "groups.update-description",
       "key": "PATCH /legacy-groups/v1/groups/{groupId}/description",
       "method": "PATCH",
       "server": "apis",
@@ -10739,115 +10613,6 @@
         "shape": {
           "type": "ref",
           "name": "Roblox.Groups.Api.GroupDescriptionResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-group:manage"
-            }
-          ]
-        }
-      },
-      "stability": "unspecified",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "groups.update-group-notification-preference",
-      "key": "PATCH /legacy-groups/v1/groups/{groupId}/notification-preference",
-      "method": "PATCH",
-      "server": "apis",
-      "path": "/legacy-groups/v1/groups/{groupId}/notification-preference",
-      "summary": "Updates the group's settings",
-      "tags": [
-        "Groups"
-      ],
-      "params": [
-        {
-          "name": "groupId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The id of the group the user is in."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.Groups.Api.UpdateGroupNotificationPreferenceRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "enum",
-          "values": [
-            "0",
-            "1",
-            "2",
-            "3"
-          ]
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "legacy-user:manage"
-            }
-          ]
-        }
-      },
-      "stability": "unspecified",
-      "legacy": true,
-      "safety": "unsafe"
-    },
-    {
-      "name": "groups.update-group-settings",
-      "key": "PATCH /legacy-groups/v1/groups/{groupId}/settings",
-      "method": "PATCH",
-      "server": "apis",
-      "path": "/legacy-groups/v1/groups/{groupId}/settings",
-      "summary": "Updates the group's settings",
-      "tags": [
-        "Groups"
-      ],
-      "params": [
-        {
-          "name": "groupId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The id of the group the user is in."
-        }
-      ],
-      "body": {
-        "required": true,
-        "media": {
-          "type": "json",
-          "content_type": "application/json",
-          "shape": {
-            "type": "ref",
-            "name": "Roblox.Groups.Api.UpdateGroupSettingsRequest"
-          }
-        }
-      },
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
         }
       },
       "auth": {
@@ -10918,9 +10683,6 @@
           "scopes": [
             {
               "name": "group:write"
-            },
-            {
-              "name": "group:write"
             }
           ]
         }
@@ -10929,7 +10691,116 @@
       "safety": "unsafe"
     },
     {
-      "name": "localization-tables.create-autolocalization-game-autolocalizationtable",
+      "name": "groups.update-notification-preference",
+      "key": "PATCH /legacy-groups/v1/groups/{groupId}/notification-preference",
+      "method": "PATCH",
+      "server": "apis",
+      "path": "/legacy-groups/v1/groups/{groupId}/notification-preference",
+      "summary": "Updates the group's settings",
+      "tags": [
+        "Groups"
+      ],
+      "params": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The id of the group the user is in."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.Groups.Api.UpdateGroupNotificationPreferenceRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "enum",
+          "values": [
+            "0",
+            "1",
+            "2",
+            "3"
+          ]
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-user:manage"
+            }
+          ]
+        }
+      },
+      "stability": "unspecified",
+      "legacy": true,
+      "safety": "unsafe"
+    },
+    {
+      "name": "groups.update-settings",
+      "key": "PATCH /legacy-groups/v1/groups/{groupId}/settings",
+      "method": "PATCH",
+      "server": "apis",
+      "path": "/legacy-groups/v1/groups/{groupId}/settings",
+      "summary": "Updates the group's settings",
+      "tags": [
+        "Groups"
+      ],
+      "params": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The id of the group the user is in."
+        }
+      ],
+      "body": {
+        "required": true,
+        "media": {
+          "type": "json",
+          "content_type": "application/json",
+          "shape": {
+            "type": "ref",
+            "name": "Roblox.Groups.Api.UpdateGroupSettingsRequest"
+          }
+        }
+      },
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "Roblox.Web.WebAPI.ApiEmptyResponseModel"
+        }
+      },
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "legacy-group:manage"
+            }
+          ]
+        }
+      },
+      "stability": "unspecified",
+      "legacy": true,
+      "safety": "unsafe"
+    },
+    {
+      "name": "localization-tables.create-autolocalization-table",
       "key": "POST /legacy-localization-tables/v1/autolocalization/games/{gameId}/autolocalizationtable",
       "method": "POST",
       "server": "apis",
@@ -11170,7 +11041,7 @@
       "safety": "read"
     },
     {
-      "name": "localization-tables.get-localization-table-limits",
+      "name": "localization-tables.get-limits",
       "key": "GET /legacy-localization-tables/v1/localization-table/limits",
       "method": "GET",
       "server": "apis",
@@ -11238,10 +11109,7 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "read",
-      "patches": [
-        "The table ID and asset ID readers have identical URL shapes but different identifier meanings."
-      ]
+      "safety": "read"
     },
     {
       "name": "localization-tables.list-entries",
@@ -11316,7 +11184,7 @@
       }
     },
     {
-      "name": "localization-tables.set-autolocalization-game-settings",
+      "name": "localization-tables.set-autolocalization-settings",
       "key": "PATCH /legacy-localization-tables/v1/autolocalization/games/{gameId}/settings",
       "method": "PATCH",
       "server": "apis",
@@ -11372,7 +11240,7 @@
       ]
     },
     {
-      "name": "localization-tables.update-localization-table-table",
+      "name": "localization-tables.update-table",
       "key": "PATCH /legacy-localization-tables/v1/localization-table/tables/{tableId}",
       "method": "PATCH",
       "server": "apis",
@@ -11432,7 +11300,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "log-attribute.create-universe-regex",
+      "name": "log-attribute.create-regex",
       "key": "POST /log-attribute-http-service/v1/universe-regexes",
       "operation_id": "LogAttributeService_Create",
       "method": "POST",
@@ -11472,7 +11340,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "log-attribute.delete-universe-regex",
+      "name": "log-attribute.delete-regex",
       "key": "DELETE /log-attribute-http-service/v1/universe-regexes/{id}",
       "operation_id": "LogAttributeService_Delete",
       "method": "DELETE",
@@ -11507,7 +11375,7 @@
       "safety": "idempotent"
     },
     {
-      "name": "log-attribute.find-universe-regexes",
+      "name": "log-attribute.find-regexes",
       "key": "GET /log-attribute-http-service/v1/universe-regexes",
       "operation_id": "LogAttributeService_Find",
       "method": "GET",
@@ -11555,7 +11423,7 @@
       ]
     },
     {
-      "name": "log-attribute.ignore-universe-regex",
+      "name": "log-attribute.ignore-regex",
       "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}/ignore",
       "operation_id": "LogAttributeService_Ignore",
       "method": "PUT",
@@ -11593,7 +11461,7 @@
       ]
     },
     {
-      "name": "log-attribute.reorder-universe-regex",
+      "name": "log-attribute.reorder-regex",
       "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}/reorder",
       "operation_id": "LogAttributeService_Reorder",
       "method": "PUT",
@@ -11646,7 +11514,7 @@
       ]
     },
     {
-      "name": "log-attribute.update-universe-regex",
+      "name": "log-attribute.update-regex",
       "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}",
       "operation_id": "LogAttributeService_Update",
       "method": "PUT",
@@ -12196,9 +12064,6 @@
             {
               "name": "memory-store.queue:add",
               "target": "universes"
-            },
-            {
-              "name": "memory-store.queue:add"
             }
           ]
         }
@@ -12270,9 +12135,6 @@
             {
               "name": "memory-store.sorted-map:write",
               "target": "universes"
-            },
-            {
-              "name": "memory-store.sorted-map:write"
             }
           ]
         }
@@ -12330,9 +12192,6 @@
             {
               "name": "memory-store.sorted-map:write",
               "target": "universes"
-            },
-            {
-              "name": "memory-store.sorted-map:write"
             }
           ]
         }
@@ -12392,9 +12251,6 @@
             {
               "name": "memory-store.queue:discard",
               "target": "universes"
-            },
-            {
-              "name": "memory-store.queue:discard"
             }
           ]
         }
@@ -12450,9 +12306,6 @@
             {
               "name": "memory-store:flush",
               "target": "universes"
-            },
-            {
-              "name": "memory-store:flush"
             }
           ]
         }
@@ -12584,9 +12437,6 @@
             {
               "name": "memory-store.sorted-map:read",
               "target": "universes"
-            },
-            {
-              "name": "memory-store.sorted-map:read"
             }
           ]
         }
@@ -12671,9 +12521,6 @@
             {
               "name": "memory-store.sorted-map:read",
               "target": "universes"
-            },
-            {
-              "name": "memory-store.sorted-map:read"
             }
           ]
         }
@@ -12756,9 +12603,6 @@
             {
               "name": "memory-store.queue:dequeue",
               "target": "universes"
-            },
-            {
-              "name": "memory-store.queue:dequeue"
             }
           ]
         }
@@ -12839,9 +12683,6 @@
             {
               "name": "memory-store.sorted-map:write",
               "target": "universes"
-            },
-            {
-              "name": "memory-store.sorted-map:write"
             }
           ]
         }
@@ -12850,7 +12691,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "messaging.publish-universe-topic",
+      "name": "messaging.publish-message",
       "key": "POST /messaging-service/v1/universes/{universeId}/topics/{topic}",
       "operation_id": "CrossServerMessaging_Publish",
       "method": "POST",
@@ -13477,9 +13318,6 @@
           "scopes": [
             {
               "name": "universe.ordered-data-store.scope.entry:write"
-            },
-            {
-              "name": "universe.ordered-data-store.scope.entry:write"
             }
           ]
         }
@@ -13543,9 +13381,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe.ordered-data-store.scope.entry:write"
-            },
             {
               "name": "universe.ordered-data-store.scope.entry:write"
             }
@@ -13615,9 +13450,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe.ordered-data-store.scope.entry:read"
-            },
             {
               "name": "universe.ordered-data-store.scope.entry:read"
             }
@@ -13698,9 +13530,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe.ordered-data-store.scope.entry:write"
-            },
             {
               "name": "universe.ordered-data-store.scope.entry:write"
             }
@@ -13795,9 +13624,6 @@
           "scopes": [
             {
               "name": "universe.ordered-data-store.scope.entry:read"
-            },
-            {
-              "name": "universe.ordered-data-store.scope.entry:read"
             }
           ]
         }
@@ -13890,9 +13716,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "universe.ordered-data-store.scope.entry:write"
-            },
             {
               "name": "universe.ordered-data-store.scope.entry:write"
             }
@@ -14458,9 +14281,6 @@
             {
               "name": "universe.place:write",
               "target": "universes"
-            },
-            {
-              "name": "universe.place:write"
             }
           ]
         }
@@ -14875,7 +14695,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "server-management.forecast-universe-restarts",
+      "name": "server-management.forecast-restarts",
       "key": "GET /server-management/v1/universes/{universeId}/restarts:forecast",
       "operation_id": "Restarts_ForecastRestart",
       "method": "GET",
@@ -14917,7 +14737,7 @@
       "safety": "read"
     },
     {
-      "name": "server-management.get-filter-options-servers",
+      "name": "server-management.get-server-filter-options",
       "key": "GET /server-management/v1/universes/{universeId}/places/{placeId}/game-servers:filter-options",
       "operation_id": "GameServers_GetFilterOptions",
       "method": "GET",
@@ -14979,7 +14799,7 @@
       ]
     },
     {
-      "name": "server-management.launch-universe-restart",
+      "name": "server-management.launch-restart",
       "key": "POST /server-management/v1/universes/{universeId}/restarts",
       "operation_id": "Restarts_LaunchRestart",
       "method": "POST",
@@ -15035,7 +14855,7 @@
       ]
     },
     {
-      "name": "server-management.list-universe-restarts",
+      "name": "server-management.list-restarts",
       "key": "GET /server-management/v1/universes/{universeId}/restarts",
       "operation_id": "Restarts_ListRestartStatuses",
       "method": "GET",
@@ -15080,105 +14900,7 @@
       ]
     },
     {
-      "name": "server-management.list-version-game-servers",
-      "key": "GET /server-management/v1/universes/{universeId}/places/{placeId}/versions/{versionNumber}/game-servers",
-      "operation_id": "GameServers_ListGameServers",
-      "method": "GET",
-      "server": "apis",
-      "path": "/server-management/v1/universes/{universeId}/places/{placeId}/versions/{versionNumber}/game-servers",
-      "summary": "Lists game servers for a specific place version.",
-      "tags": [
-        "Observability"
-      ],
-      "params": [
-        {
-          "name": "universeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The universe ID"
-        },
-        {
-          "name": "placeId",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The place ID"
-        },
-        {
-          "name": "versionNumber",
-          "in": "path",
-          "required": true,
-          "kind": {
-            "type": "string"
-          },
-          "description": "The version number"
-        },
-        {
-          "name": "MaxPageSize",
-          "in": "query",
-          "kind": {
-            "type": "integer"
-          },
-          "description": "The maximum number of game servers to return. The service might return fewer than this value. If unspecified, at most 25 game servers are returned. The maximum value is 100 and higher values are set to 100. Zero returns no game servers and only the total count, for callers that need the count without paging through rows."
-        },
-        {
-          "name": "PageToken",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "A page token, received from a previous call, to retrieve a subsequent page. When paginating, all other parameters provided to the subsequent call must match the call that provided the page token."
-        },
-        {
-          "name": "OrderBy",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "Sorting is supported only for a single field at a time. Example: \"orderBy\": \"uptime\" Defaults to ascending, but descending ordering is also supported by including the \" desc\" suffix. For example: \"orderBy\": \"uptime desc\"."
-        },
-        {
-          "name": "Filter",
-          "in": "query",
-          "kind": {
-            "type": "string"
-          },
-          "description": "This field may be set in order to filter the resources returned. - CEL filtering is supported on all fields. - Supported operators &&, <, <=, >, >=, ==, and `in`"
-        }
-      ],
-      "response": {
-        "type": "json",
-        "shape": {
-          "type": "ref",
-          "name": "ServerManagementService.ListGameServersResponse"
-        }
-      },
-      "auth": {
-        "apikey": {
-          "scopes": [
-            {
-              "name": "universe:read",
-              "target": "universes"
-            }
-          ]
-        }
-      },
-      "stability": "beta",
-      "safety": "read",
-      "pagination": {
-        "token_param": "PageToken",
-        "size_param": "MaxPageSize",
-        "next_field": "nextPageToken",
-        "items_field": "gameServers"
-      }
-    },
-    {
-      "name": "server-management.list-version-server-logs",
+      "name": "server-management.list-server-logs",
       "key": "GET /server-management/v1/universes/{universeId}/places/{placeId}/versions/{versionNumber}/game-servers/{jobId}/logs",
       "operation_id": "GameServers_ListGameServerLogs",
       "method": "GET",
@@ -15282,10 +15004,105 @@
         "size_param": "MaxPageSize",
         "next_field": "nextPageToken",
         "items_field": "gameServerLogs"
+      }
+    },
+    {
+      "name": "server-management.list-servers",
+      "key": "GET /server-management/v1/universes/{universeId}/places/{placeId}/versions/{versionNumber}/game-servers",
+      "operation_id": "GameServers_ListGameServers",
+      "method": "GET",
+      "server": "apis",
+      "path": "/server-management/v1/universes/{universeId}/places/{placeId}/versions/{versionNumber}/game-servers",
+      "summary": "Lists game servers for a specific place version.",
+      "tags": [
+        "Observability"
+      ],
+      "params": [
+        {
+          "name": "universeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The universe ID"
+        },
+        {
+          "name": "placeId",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The place ID"
+        },
+        {
+          "name": "versionNumber",
+          "in": "path",
+          "required": true,
+          "kind": {
+            "type": "string"
+          },
+          "description": "The version number"
+        },
+        {
+          "name": "MaxPageSize",
+          "in": "query",
+          "kind": {
+            "type": "integer"
+          },
+          "description": "The maximum number of game servers to return. The service might return fewer than this value. If unspecified, at most 25 game servers are returned. The maximum value is 100 and higher values are set to 100. Zero returns no game servers and only the total count, for callers that need the count without paging through rows."
+        },
+        {
+          "name": "PageToken",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "A page token, received from a previous call, to retrieve a subsequent page. When paginating, all other parameters provided to the subsequent call must match the call that provided the page token."
+        },
+        {
+          "name": "OrderBy",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "Sorting is supported only for a single field at a time. Example: \"orderBy\": \"uptime\" Defaults to ascending, but descending ordering is also supported by including the \" desc\" suffix. For example: \"orderBy\": \"uptime desc\"."
+        },
+        {
+          "name": "Filter",
+          "in": "query",
+          "kind": {
+            "type": "string"
+          },
+          "description": "This field may be set in order to filter the resources returned. - CEL filtering is supported on all fields. - Supported operators &&, <, <=, >, >=, ==, and `in`"
+        }
+      ],
+      "response": {
+        "type": "json",
+        "shape": {
+          "type": "ref",
+          "name": "ServerManagementService.ListGameServersResponse"
+        }
       },
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "auth": {
+        "apikey": {
+          "scopes": [
+            {
+              "name": "universe:read",
+              "target": "universes"
+            }
+          ]
+        }
+      },
+      "stability": "beta",
+      "safety": "read",
+      "pagination": {
+        "token_param": "PageToken",
+        "size_param": "MaxPageSize",
+        "next_field": "nextPageToken",
+        "items_field": "gameServers"
+      }
     },
     {
       "name": "service-efficiency.check-eligibility-group",
@@ -16563,12 +16380,6 @@
             {
               "name": "universe.subscription-product.subscription:read",
               "target": "universes"
-            },
-            {
-              "name": "universe:write"
-            },
-            {
-              "name": "universe.subscription-product.subscription:read"
             }
           ]
         }
@@ -16577,7 +16388,7 @@
       "safety": "read"
     },
     {
-      "name": "thumbnail-personalization.create-universe-personalization-create",
+      "name": "thumbnail-personalization.create-personalization",
       "key": "POST /thumbnail-personalization-api/v1/universes/{universeId}/personalization/create",
       "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_CreateThumbnailPersonalization",
       "method": "POST",
@@ -16629,7 +16440,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "thumbnail-personalization.delete-universe-thumbnails",
+      "name": "thumbnail-personalization.delete-thumbnails",
       "key": "DELETE /thumbnail-personalization-api/v1/universes/{universeId}/thumbnails",
       "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_DeleteHomepageThumbnails",
       "method": "DELETE",
@@ -16685,7 +16496,7 @@
       "safety": "idempotent"
     },
     {
-      "name": "thumbnail-personalization.get-universe-thumbnails",
+      "name": "thumbnail-personalization.get-thumbnails",
       "key": "GET /thumbnail-personalization-api/v1/universes/{universeId}/thumbnails",
       "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_GetHomepageThumbnails",
       "method": "GET",
@@ -16797,7 +16608,7 @@
       "safety": "read"
     },
     {
-      "name": "thumbnail-personalization.list-universe-personalization",
+      "name": "thumbnail-personalization.list-personalization",
       "key": "GET /thumbnail-personalization-api/v1/universes/{universeId}/personalization",
       "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_FindThumbnailPersonalizations",
       "method": "GET",
@@ -16870,7 +16681,7 @@
       }
     },
     {
-      "name": "thumbnail-personalization.update-universe-personalization",
+      "name": "thumbnail-personalization.update-personalization",
       "key": "POST /thumbnail-personalization-api/v1/universes/{universeId}/personalization/update",
       "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_UpdateThumbnailPersonalization",
       "method": "POST",
@@ -16925,7 +16736,7 @@
       ]
     },
     {
-      "name": "thumbnail-personalization.upload-universe-thumbnails",
+      "name": "thumbnail-personalization.upload-thumbnails",
       "key": "POST /thumbnail-personalization-api/v1/universes/{universeId}/thumbnails/uploads",
       "operation_id": "ThumbnailPersonalizationApi.HomepageThumbnail_UploadHomepageThumbnails",
       "method": "POST",
@@ -16985,7 +16796,7 @@
       ]
     },
     {
-      "name": "thumbnails.get-assets-thumbnail-3d",
+      "name": "thumbnails.get-assets-3d",
       "key": "GET /v1/assets-thumbnail-3d",
       "method": "GET",
       "server": "thumbnails",
@@ -17829,10 +17640,7 @@
         }
       },
       "stability": "experimental",
-      "safety": "read",
-      "patches": [
-        "Before 0.1.0, omit redundant scope and resource nouns while retaining the documented action."
-      ]
+      "safety": "read"
     },
     {
       "name": "universes.create-place-version",
@@ -17901,9 +17709,6 @@
             {
               "name": "universe-places:write",
               "target": "v1"
-            },
-            {
-              "name": "universe-places:write"
             }
           ]
         }
@@ -17919,7 +17724,8 @@
         "delay_seconds": 60
       },
       "patches": [
-        "The spec declares no request body. The endpoint takes the place file as application/octet-stream and answers with JSON despite declaring text/plain."
+        "The spec declares no request body. The endpoint takes the place file as application/octet-stream and answers with JSON despite declaring text/plain.",
+        "This legacy path has an implicit universe resource and creates a place version, rather than a universe version. Keep the published resource qualifier."
       ]
     },
     {
@@ -17970,15 +17776,6 @@
             {
               "name": "universe:write",
               "target": "universes"
-            },
-            {
-              "name": "asset:read"
-            },
-            {
-              "name": "asset:write"
-            },
-            {
-              "name": "universe:write"
             },
             {
               "name": "asset:read"
@@ -18167,9 +17964,6 @@
             {
               "name": "universe:write",
               "target": "universes"
-            },
-            {
-              "name": "universe:write"
             }
           ]
         }
@@ -18286,9 +18080,6 @@
             {
               "name": "universe:write",
               "target": "universes"
-            },
-            {
-              "name": "universe:write"
             }
           ]
         }
@@ -18343,9 +18134,6 @@
             {
               "name": "universe.user-restriction:read",
               "target": "universes"
-            },
-            {
-              "name": "universe.user-restriction:read"
             }
           ]
         }
@@ -18410,9 +18198,6 @@
             {
               "name": "universe.user-restriction:read",
               "target": "universes"
-            },
-            {
-              "name": "universe.user-restriction:read"
             }
           ]
         }
@@ -18474,9 +18259,6 @@
             {
               "name": "universe.user-restriction:read",
               "target": "universes"
-            },
-            {
-              "name": "universe.user-restriction:read"
             }
           ]
         }
@@ -18552,9 +18334,6 @@
             {
               "name": "universe.user-restriction:read",
               "target": "universes"
-            },
-            {
-              "name": "universe.user-restriction:read"
             }
           ]
         }
@@ -18632,9 +18411,6 @@
             {
               "name": "universe.user-restriction:read",
               "target": "universes"
-            },
-            {
-              "name": "universe.user-restriction:read"
             }
           ]
         }
@@ -18730,9 +18506,6 @@
             {
               "name": "universe.user-restriction:write",
               "target": "universes"
-            },
-            {
-              "name": "universe.user-restriction:write"
             }
           ]
         }
@@ -18832,9 +18605,6 @@
             {
               "name": "universe.user-restriction:write",
               "target": "universes"
-            },
-            {
-              "name": "universe.user-restriction:write"
             }
           ]
         }
@@ -18887,9 +18657,6 @@
       "auth": {
         "apikey": {
           "scopes": [
-            {
-              "name": "user.user-notification:write"
-            },
             {
               "name": "user.user-notification:write"
             }
@@ -19220,7 +18987,7 @@
       }
     },
     {
-      "name": "virtual-events.create-universe-game-event",
+      "name": "virtual-events.create",
       "key": "POST /virtual-events/v3/universes/{universeId}/game-events",
       "operation_id": "GameEvents_CreateGameEvent",
       "method": "POST",
@@ -19273,7 +19040,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "virtual-events.delete-game-event",
+      "name": "virtual-events.delete",
       "key": "DELETE /virtual-events/v3/game-events/{eventId}",
       "operation_id": "GameEvent_DeleteGameEvent",
       "method": "DELETE",
@@ -19310,7 +19077,7 @@
       "safety": "idempotent"
     },
     {
-      "name": "virtual-events.get-game-event",
+      "name": "virtual-events.get",
       "key": "GET /virtual-events/v3/game-events/{eventId}",
       "operation_id": "GameEvent_GetGameEvent",
       "method": "GET",
@@ -19359,7 +19126,7 @@
       "safety": "read"
     },
     {
-      "name": "virtual-events.list-universe-game-events",
+      "name": "virtual-events.list",
       "key": "GET /virtual-events/v3/universes/{universeId}/game-events",
       "operation_id": "GameEvents_GetGameEvents",
       "method": "GET",
@@ -19479,7 +19246,7 @@
       }
     },
     {
-      "name": "virtual-events.update-game-event",
+      "name": "virtual-events.update",
       "key": "PATCH /virtual-events/v3/game-events/{eventId}",
       "operation_id": "GameEvent_UpdateGameEvent",
       "method": "PATCH",

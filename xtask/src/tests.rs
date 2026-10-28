@@ -75,7 +75,7 @@ fn missing_scopes_remain_unknown() {
         overlay: &overlay,
     })
     .unwrap();
-    assert_eq!(actual.op("assets.get-asset").unwrap().auth, Auth::ApiKey { scopes: None });
+    assert_eq!(actual.op("assets.get").unwrap().auth, Auth::ApiKey { scopes: None });
 }
 
 #[test]
@@ -107,16 +107,16 @@ fn operation_response_coverage_detects_a_missing_completion() {
 #[test]
 fn naming_survives_path_moves_and_new_collisions() {
     let (_, _, previous) = inputs();
-    let mut ops = vec![previous.op("assets.get-asset").unwrap().clone()];
+    let mut ops = vec![previous.op("assets.get").unwrap().clone()];
     ops[0].name.clear();
     ops[0].path = "/assets/v2/assets/{assetId}".into();
     ops[0].key = "GET /assets/v2/assets/{assetId}".into();
-    naming::assign(&mut ops, Some(&previous), &mut build::Report::default());
-    assert_eq!(ops[0].name, "assets.get-asset", "an operationId preserves the command after a move");
-    assert_eq!(naming::derive(previous.op("assets.get-asset").unwrap()), "assets.get-asset");
+    naming::assign(&mut ops, Some(&previous), &inputs().1.vocabulary, &mut build::Report::default());
+    assert_eq!(ops[0].name, "assets.get", "an operationId preserves the command after a move");
+    assert_eq!(naming::derive(previous.op("assets.get").unwrap(), &inputs().1.vocabulary), "assets.get");
     assert_eq!(
-        naming::derive(previous.op("universes.create-place-version").unwrap()),
-        "universes.create-place-version"
+        naming::derive(previous.op("universes.create-place-version").unwrap(), &inputs().1.vocabulary),
+        "universes.create-version"
     );
 }
 
@@ -125,7 +125,7 @@ fn matcher_handles_urls_polling_and_ambiguous_templates() {
     let (_, _, r) = inputs();
     let resolved =
         r.resolve(&OpRef::Url { method: Method::Get, path: "/assets/v1/assets/42".into(), query: vec![] }).unwrap();
-    assert_eq!(resolved.op.name, "assets.get-asset");
+    assert_eq!(resolved.op.name, "assets.get");
     for (key, path) in [
         ("POST /assets/v1/assets", "operations/abc"),
         ("POST /cloud/v2/universes/{universe_id}/memory-store:flush", "universes/1/memory-store/operations/x"),
@@ -155,7 +155,7 @@ fn detection_pagination_and_search_use_registry_data() {
     assert!(!hits.is_empty());
     assert!(hits.iter().all(|h| h.path.contains("luau") && h.path.contains("logs")));
     assert!(
-        matches!(r.resolve(&OpRef::Name("assets.get-asse".into())), Err(ResolveError::Unknown { suggestions }) if suggestions.contains(&"assets.get-asset".into()))
+        matches!(r.resolve(&OpRef::Name("assets.ge".into())), Err(ResolveError::Unknown { suggestions }) if suggestions.contains(&"assets.get".into()))
     );
 }
 
@@ -165,21 +165,21 @@ fn diff_reports_reachable_schema_changes() {
     let mut new = old.clone();
     new.schemas.insert("Asset".into(), Shape::Any);
     let changes = diff::diff(&old, &new);
-    assert!(changes.changed.iter().any(|c| c.name == "assets.get-asset" && c.fields.contains(&"schema")));
+    assert!(changes.changed.iter().any(|c| c.name == "assets.get" && c.fields.contains(&"schema")));
 }
 
 #[test]
 fn reused_operation_id_cannot_take_a_surviving_keys_name() {
     let (_, _, previous) = inputs();
-    let survivor = previous.op("assets.get-asset").unwrap().clone();
+    let survivor = previous.op("assets.get").unwrap().clone();
     let mut added = survivor.clone();
-    added.key = "GET /assets/v2/assets/{assetId}".into();
-    added.path = "/assets/v2/assets/{assetId}".into();
+    added.key = "GET /assets/v2/future-assets/{assetId}".into();
+    added.path = "/assets/v2/future-assets/{assetId}".into();
     let mut ops = vec![added, survivor.clone()];
     for op in &mut ops {
         op.name.clear();
     }
-    naming::assign(&mut ops, Some(&previous), &mut build::Report::default());
+    naming::assign(&mut ops, Some(&previous), &inputs().1.vocabulary, &mut build::Report::default());
     assert_eq!(
         ops[1].name, survivor.name,
         "a surviving key keeps its name even if another path reuses its operationId"
@@ -209,7 +209,7 @@ fn coverage_checks_every_success_response() {
 fn diff_reports_command_identity_and_server_changes() {
     let (_, _, old) = inputs();
     let mut new = old.clone();
-    let op = new.ops.iter_mut().find(|op| op.name == "assets.get-asset").unwrap();
+    let op = new.ops.iter_mut().find(|op| op.name == "assets.get").unwrap();
     op.name = "assets.renamed".into();
     op.server = Server::Thumbnails;
     op.operation_id = Some("NewIdentity".into());
@@ -290,9 +290,9 @@ fn duplicate_overlay_keys_fail_the_build() {
 fn read_named_posts_are_safe_to_repeat() {
     let (_, _, registry) = inputs();
     for name in [
-        "analytics-benchmark.query-universe-benchmarks",
+        "analytics-benchmark.query-benchmarks",
         "game-internationalization.get-text-translation-history",
-        "groups.get-groups-policy",
+        "groups.get-policy",
         "localization-tables.get-entries-translation-history",
     ] {
         assert_eq!(registry.op(name).unwrap().safety, Safety::Read, "{name} only reads data");
@@ -394,10 +394,10 @@ fn resource_names_use_complete_singular_nouns() {
         ("patches", "patch"),
         ("forum-categories", "forum-category"),
     ] {
-        let mut op = registry.op("assets.get-asset").unwrap().clone();
+        let mut op = registry.op("assets.get").unwrap().clone();
         op.path = format!("/future/v1/{plural}/{{id}}");
         assert_eq!(
-            naming::derive(&op),
+            naming::derive(&op, &inputs().1.vocabulary),
             format!("future.get-{singular}"),
             "{plural} must retain its complete singular noun"
         );
@@ -471,7 +471,12 @@ fn semantic_names_match_operation_intent_before_the_first_release() {
     for patch in overlay.patch.iter().filter(|patch| patch.name.is_some()) {
         let op = r.by_key(&patch.key).unwrap();
         assert!(covered.contains(patch.key.as_str()), "every name override has an identity fixture: {}", patch.key);
-        assert_ne!(patch.name.as_deref().unwrap(), naming::derive(op), "redundant override: {}", patch.key);
+        assert_ne!(
+            patch.name.as_deref().unwrap(),
+            naming::derive(op, &overlay.vocabulary),
+            "redundant override: {}",
+            patch.key
+        );
     }
 }
 
@@ -480,7 +485,13 @@ fn fresh_names_use_resource_families_without_collision_suffixes() {
     let (spec, overlay, previous) = inputs();
     let (r, report) =
         build::build(build::Input { spec: &spec, source: previous.source, previous: None, overlay: &overlay }).unwrap();
-    assert!(report.name_collisions.is_empty(), "real collisions need meaningful overlay names");
+    assert!(
+        report.name_collisions.iter().all(|group| group.assigned.iter().all(|(_, name)| name == &group.derived
+            || name.ends_with("-v1")
+            || name == &format!("{}-group", group.derived)
+            || name == &format!("{}-user", group.derived))),
+        "collisions keep API versions or symmetric scope nouns"
+    );
     for line in include_str!("../fixtures/resource-names.tsv").lines() {
         let (key, name) = line.split_once('\t').unwrap();
         assert_eq!(r.by_key(key).unwrap().name, name, "fresh resource name for {key}");
@@ -518,10 +529,10 @@ fn future_luau_collections_keep_their_resource_nouns() {
         (Method::Post, "luau-execution-artifacts", "luau.create-artifact"),
         (Method::Post, "luau-execution-artifacts/{id}:refresh", "luau.refresh-artifact"),
     ] {
-        let mut op = registry.op("assets.get-asset").unwrap().clone();
+        let mut op = registry.op("assets.get").unwrap().clone();
         op.method = method;
         op.path = format!("/cloud/v2/universes/{{universe_id}}/{suffix}");
-        assert_eq!(naming::derive(&op), expected);
+        assert_eq!(naming::derive(&op, &inputs().1.vocabulary), expected);
     }
 }
 
@@ -534,7 +545,7 @@ fn search_ranks_real_agent_queries() {
         ("data store entry", "data-stores.get-entry", false),
         ("luau logs", "luau.list-task-logs", true),
         ("universe", "universes.get", true),
-        ("upload asset", "assets.create-asset", true),
+        ("upload asset", "assets.create", true),
     ] {
         let hits = r.find(query, 3);
         assert!(hits.iter().any(|hit| hit.name == expected), "{query}: {hits:?}");
@@ -561,4 +572,156 @@ fn body_key_introspection_declares_no_required_scopes() {
         "introspection requires no scope"
     );
     assert_eq!(Auth::ApiKey { scopes: None }.required_scopes(), None, "missing API-key metadata stays unknown");
+}
+
+#[test]
+fn every_namespace_obeys_its_vocabulary() {
+    let (_, overlay, registry) = inputs();
+    assert!(naming::consistency(&registry.ops, &overlay.vocabulary).is_empty());
+    for name in [
+        "assets.get-asset",
+        "creator-configs.get-experimentation-experiment",
+        "creator-configs.get-configs",
+        "game-internationalization.get-developer-product-icons",
+        "game-internationalization.get-game-pass-icons",
+    ] {
+        let mut op = registry.ops[0].clone();
+        op.name = name.into();
+        assert!(!naming::consistency(&[op], &overlay.vocabulary).is_empty(), "reject {name}");
+    }
+    let mut op = registry.ops[0].clone();
+    op.name = "universes.get-place-universe".into();
+    assert!(naming::consistency(&[op.clone()], &overlay.vocabulary).is_empty());
+    let mut vocabulary = overlay.vocabulary;
+    vocabulary.get_mut("universes").unwrap().exceptions[0].reason.clear();
+    assert!(!naming::consistency(&[op], &vocabulary).is_empty(), "exceptions require a reason");
+}
+
+#[test]
+fn namespace_rules_also_apply_to_future_operations() {
+    let (_, overlay, registry) = inputs();
+    for (path, expected) in [
+        ("/assets/v1/assets/{id}", "assets.get"),
+        ("/badges/v1/universes/{id}/badges/{badge}", "badges.get"),
+        (
+            "/creator-configs-public-api/v1/experimentation/universes/{id}/experiments/{experiment}/results/{result}",
+            "creator-configs.get-experiment-result",
+        ),
+        (
+            "/legacy-game-internationalization/v1/developer-products/{id}/icons/{icon}",
+            "game-internationalization.get-product-icon",
+        ),
+        (
+            "/legacy-game-internationalization/v1/game-passes/{id}/icons/{icon}",
+            "game-internationalization.get-pass-icon",
+        ),
+        (
+            "/analytics-alert-control-plane/v1/resource/{type}/id/{id}/alerts/{alert}",
+            "analytics-alert-control-plane.get-alert",
+        ),
+    ] {
+        let mut op = registry.ops[0].clone();
+        op.path = path.into();
+        op.method = Method::Get;
+        op.pagination = None;
+        assert_eq!(naming::derive(&op, &overlay.vocabulary), expected);
+    }
+}
+
+#[test]
+fn newer_versions_keep_the_plain_action() {
+    let (_, overlay, registry) = inputs();
+    let mut ops = Vec::new();
+    for version in [1, 2, 3] {
+        let mut op = registry.ops[0].clone();
+        op.path = format!("/future/v{version}/things/{{id}}");
+        op.key = format!("GET {}", op.path);
+        op.name.clear();
+        op.method = Method::Get;
+        ops.push(op);
+    }
+    naming::assign(&mut ops, None, &overlay.vocabulary, &mut build::Report::default());
+    assert_eq!(
+        ops.iter().map(|op| op.name.as_str()).collect::<Vec<_>>(),
+        ["future.get-thing-v1", "future.get-thing-v2", "future.get-thing"]
+    );
+    let mut previous = registry;
+    previous.ops = vec![ops[0].clone()];
+    previous.ops[0].name = "future.get-thing".into();
+    for op in &mut ops {
+        op.name.clear();
+    }
+    naming::assign(&mut ops, Some(&previous), &overlay.vocabulary, &mut build::Report::default());
+    assert_eq!(ops[0].name, "future.get-thing-v1");
+    assert_eq!(ops[2].name, "future.get-thing");
+}
+
+#[test]
+fn scope_names_are_unique_and_keep_the_first_metadata() {
+    let (mut spec, overlay, registry) = inputs();
+    spec["paths"]["/assets/v1/assets/{assetId}"]["get"]["x-roblox-scopes"] = json!([
+        {"name":"asset:read", "targetResourceSpecifier":"first"},
+        {"name":"asset:read", "targetResourceSpecifier":"second"},
+        {"name":"asset:write"}
+    ]);
+    let (rebuilt, report) = build::build(build::Input {
+        spec: &spec,
+        overlay: &overlay,
+        source: registry.source.clone(),
+        previous: Some(&registry),
+    })
+    .unwrap();
+    let scopes = rebuilt.op("assets.get").unwrap().auth.required_scopes().unwrap();
+    assert_eq!(scopes.iter().map(|scope| scope.name.as_str()).collect::<Vec<_>>(), ["asset:read", "asset:write"]);
+    assert_eq!(scopes[0].target.as_deref(), Some("first"));
+    assert!(report.duplicate_scope_operations > 0);
+    for op in &rebuilt.ops {
+        if let Some(scopes) = op.auth.required_scopes() {
+            assert_eq!(
+                scopes.len(),
+                scopes.iter().map(|scope| &scope.name).collect::<BTreeSet<_>>().len(),
+                "{}",
+                op.key
+            );
+        }
+    }
+}
+
+#[test]
+fn custom_methods_keep_their_whole_verb() {
+    let (_, overlay, registry) = inputs();
+    let mut op = registry.ops[0].clone();
+    op.path = "/assets/v1/assets/{id}:refreshAsset".into();
+    op.name = naming::derive(&op, &overlay.vocabulary);
+    assert_eq!(op.name, "assets.refresh-asset");
+    assert!(naming::consistency(&[op], &overlay.vocabulary).is_empty());
+}
+
+#[test]
+fn collision_groups_keep_distinguishing_nouns_in_the_same_position() {
+    let (_, overlay, registry) = inputs();
+    let mut ops = Vec::new();
+    for scope in ["users", "groups"] {
+        let mut op = registry.ops[0].clone();
+        op.path = format!("/future/v1/profiles/{scope}/{{id}}/settings");
+        op.key = format!("GET {}", op.path);
+        op.name.clear();
+        op.method = Method::Get;
+        op.pagination = None;
+        ops.push(op);
+    }
+    naming::assign(&mut ops, None, &overlay.vocabulary, &mut build::Report::default());
+    assert_eq!(ops[0].name, "future.get-profiles-settings-user");
+    assert_eq!(ops[1].name, "future.get-profiles-settings-group");
+}
+
+#[test]
+fn final_name_fixture_covers_every_namespace_and_limits_action_length() {
+    let (_, _, registry) = inputs();
+    let covered: BTreeSet<_> =
+        include_str!("../fixtures/resource-names.tsv").lines().map(|line| line.split_once('\t').unwrap().0).collect();
+    for op in &registry.ops {
+        assert!(covered.contains(op.key.as_str()), "fixture missing {}", op.key);
+        assert!(op.name.split_once('.').unwrap().1.split('-').count() <= 4, "{}", op.name);
+    }
 }

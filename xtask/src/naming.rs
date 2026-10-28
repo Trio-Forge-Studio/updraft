@@ -4,8 +4,14 @@ use updraft_registry::path::{Template, Word};
 use updraft_registry::{Method, Op, Registry, Server};
 
 use crate::build::{Collision, Report};
+use crate::overlay::Vocabulary;
 
-pub fn assign(ops: &mut [Op], previous: Option<&Registry>, report: &mut Report) {
+pub fn assign(
+    ops: &mut [Op],
+    previous: Option<&Registry>,
+    vocabulary: &BTreeMap<String, Vocabulary>,
+    report: &mut Report,
+) {
     for op in ops.iter().filter(|op| op.path.starts_with("/cloud/v2/")) {
         let template = Template::parse(&op.path);
         let relative = template.without_root(template.root_len());
@@ -15,6 +21,12 @@ pub fn assign(ops: &mut [Op], previous: Option<&Registry>, report: &mut Report) 
         }
     }
     let mut taken: BTreeSet<String> = BTreeSet::new();
+    let mut kept = BTreeSet::new();
+    let mut versions: BTreeMap<String, BTreeSet<u32>> = BTreeMap::new();
+    for op in ops.iter() {
+        let name = if op.name.is_empty() { derive(op, vocabulary) } else { op.name.clone() };
+        versions.entry(name).or_default().insert(version(op));
+    }
     if let Some(previous) = previous {
         let surviving: BTreeSet<&str> = ops.iter().map(|op| op.key.as_str()).collect();
         let by_key: BTreeMap<&str, &str> = previous.ops.iter().map(|op| (op.key.as_str(), op.name.as_str())).collect();
@@ -24,22 +36,23 @@ pub fn assign(ops: &mut [Op], previous: Option<&Registry>, report: &mut Report) 
             .filter(|op| !surviving.contains(op.key.as_str()))
             .filter_map(|op| op.operation_id.as_deref().map(|id| (id, op.name.as_str())))
             .collect();
-        for op in ops.iter_mut().filter(|op| op.name.is_empty()) {
-            let kept = by_key.get(op.key.as_str()).or_else(|| op.operation_id.as_deref().and_then(|id| by_id.get(id)));
-            if let Some(name) = kept.filter(|name| !taken.contains(**name)) {
+        for (index, op) in ops.iter_mut().enumerate().filter(|(_, op)| op.name.is_empty()) {
+            if versions.get(&derive(op, vocabulary)).is_some_and(|versions| versions.len() > 1) {
+                continue;
+            }
+            let prior = by_key.get(op.key.as_str()).or_else(|| op.operation_id.as_deref().and_then(|id| by_id.get(id)));
+            if let Some(name) = prior.filter(|name| !taken.contains(**name)) {
                 op.name = (*name).to_owned();
                 taken.insert(op.name.clone());
                 report.kept_names += 1;
+                kept.insert(index);
             }
         }
     }
-    for op in ops.iter().filter(|op| !op.name.is_empty()) {
-        taken.insert(op.name.clone());
-    }
-
     let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
-    for (index, op) in ops.iter().enumerate().filter(|(_, op)| op.name.is_empty()) {
-        groups.entry(derive(op)).or_default().push(index);
+    for (index, op) in ops.iter().enumerate().filter(|(index, _)| !kept.contains(index)) {
+        let name = if op.name.is_empty() { derive(op, vocabulary) } else { op.name.clone() };
+        groups.entry(name).or_default().push(index);
     }
     for (derived, mut members) in groups {
         members.sort_by(|a, b| ops[*a].key.cmp(&ops[*b].key));
@@ -60,46 +73,138 @@ pub fn assign(ops: &mut [Op], previous: Option<&Registry>, report: &mut Report) 
 }
 
 fn disambiguate(ops: &[Op], members: &[usize], derived: &str, taken: &BTreeSet<String>) -> Vec<String> {
-    let methods: BTreeSet<Method> = members.iter().map(|index| ops[*index].method).collect();
-    let lowest = members.iter().map(|index| version(&ops[*index])).min().unwrap_or(0);
+    let newest = members.iter().map(|index| version(&ops[*index])).max().unwrap_or(0);
+    let versions: BTreeSet<u32> = members.iter().map(|index| version(&ops[*index])).collect();
     let mut names: Vec<String> = members
         .iter()
         .map(|index| {
-            let op = &ops[*index];
-            match version(op) {
-                _ if methods.len() > 1 => format!("{derived}-{}", method_word(op.method)),
-                v if v > lowest => format!("{derived}-v{v}"),
-                _ => derived.to_owned(),
-            }
+            let v = version(&ops[*index]);
+            if versions.len() > 1 && v < newest { format!("{derived}-v{v}") } else { derived.to_owned() }
         })
         .collect();
-    let colliding = |names: &[String], at: usize| {
-        taken.contains(&names[at]) || names.iter().enumerate().any(|(other, name)| other != at && *name == names[at])
-    };
-    let by_param: Vec<String> = (0..names.len())
-        .map(|at| {
-            if !colliding(&names, at) {
-                return names[at].clone();
+    if versions.len() == 1 && members.len() > 1 {
+        let nouns: Vec<Vec<String>> = members
+            .iter()
+            .map(|index| {
+                let template = Template::parse(&ops[*index].path);
+                template
+                    .without_root(template.root_len())
+                    .words()
+                    .iter()
+                    .filter_map(|word| if let Word::Noun(noun) = word { Some(singular(noun)) } else { None })
+                    .collect()
+            })
+            .collect();
+        if let Some(at) = (0..nouns.iter().map(Vec::len).min().unwrap_or(0))
+            .find(|at| nouns.iter().map(|nouns| &nouns[*at]).collect::<BTreeSet<_>>().len() == members.len())
+        {
+            for (index, name) in names.iter_mut().enumerate() {
+                *name = format!("{derived}-{}", nouns[index][at]);
             }
-            let template = Template::parse(&ops[members[at]].path);
-            match template.param_names().last() {
-                Some(param) => format!("{}-by-{}", names[at], kebab(param)),
-                None => names[at].clone(),
-            }
-        })
-        .collect();
-    names = by_param;
-    let mut counter = 1;
-    for at in 0..names.len() {
-        while colliding(&names, at) {
-            counter += 1;
-            names[at] = format!("{derived}-{counter}");
+        }
+    }
+    if taken.contains(derived) {
+        for (at, name) in names.iter_mut().enumerate() {
+            *name = format!("{derived}-v{}", version(&ops[members[at]]));
         }
     }
     names
 }
 
-pub fn derive(op: &Op) -> String {
+pub fn derive(op: &Op, vocabulary: &BTreeMap<String, Vocabulary>) -> String {
+    let raw = derive_path(op);
+    let (namespace, action) = raw.split_once('.').unwrap();
+    let default = Vocabulary::default();
+    let vocabulary = vocabulary.get(namespace).unwrap_or(&default);
+    if vocabulary.exceptions.iter().any(|exception| exception.name == raw && !exception.reason.trim().is_empty()) {
+        return raw;
+    }
+    let (verb, nouns) = action_parts(op, action);
+    let mut nouns: Vec<String> = nouns.split('-').filter(|word| !word.is_empty()).map(str::to_owned).collect();
+    for rename in &vocabulary.rename {
+        replace_noun(&mut nouns, &rename.from, Some(&rename.to));
+    }
+    for noun in vocabulary.drop.iter().map(String::as_str).chain([namespace.trim_end_matches("-v1")]) {
+        replace_noun(&mut nouns, noun, None);
+    }
+    if nouns.is_empty() { format!("{namespace}.{verb}") } else { format!("{namespace}.{verb}-{}", nouns.join("-")) }
+}
+
+fn action_parts<'a>(op: &Op, action: &'a str) -> (&'a str, &'a str) {
+    let template = Template::parse(&op.path);
+    let custom =
+        template.words().iter().find_map(|word| if let Word::Verb(verb) = word { Some(kebab(verb)) } else { None });
+    if let Some(custom) = custom.filter(|verb| !verb.starts_with("list-")) {
+        if action == custom {
+            return (action, "");
+        }
+        if let Some(nouns) = action.strip_prefix(&format!("{custom}-")) {
+            return (&action[..custom.len()], nouns);
+        }
+    }
+    action.split_once('-').unwrap_or((action, ""))
+}
+
+fn replace_noun(words: &mut Vec<String>, from: &str, to: Option<&str>) {
+    let count = from.split('-').count();
+    let mut at = 0;
+    while at + count <= words.len() {
+        let phrase = words[at..at + count].join("-");
+        if singular(&phrase) != singular(from) {
+            at += 1;
+            continue;
+        }
+        let replacement = to.map(|to| if phrase == singular(&phrase) { singular(to) } else { to.to_owned() });
+        let replacement: Vec<String> =
+            replacement.into_iter().flat_map(|text| text.split('-').map(str::to_owned).collect::<Vec<_>>()).collect();
+        let added = replacement.len();
+        words.splice(at..at + count, replacement);
+        at += added;
+    }
+}
+
+pub fn consistency(ops: &[Op], vocabulary: &BTreeMap<String, Vocabulary>) -> Vec<String> {
+    let mut errors = Vec::new();
+    for op in ops {
+        let (namespace, action) = op.name.split_once('.').unwrap();
+        if action.split('-').count() > 4 {
+            errors.push(format!("{} exceeds four action words", op.name));
+        }
+        let default = Vocabulary::default();
+        let vocabulary = vocabulary.get(namespace).unwrap_or(&default);
+        if vocabulary
+            .exceptions
+            .iter()
+            .any(|exception| exception.name == op.name && !exception.reason.trim().is_empty())
+        {
+            continue;
+        }
+        let (_, nouns) = action_parts(op, action);
+        let nouns = nouns.strip_suffix("-v1").unwrap_or(nouns);
+        let words: Vec<_> = nouns.split('-').collect();
+        let contains = |term: &str| {
+            let count = term.split('-').count();
+            words.windows(count).any(|window| singular(&window.join("-")) == singular(term))
+        };
+        for term in vocabulary.drop.iter().chain(vocabulary.rename.iter().map(|rename| &rename.from)) {
+            if contains(term) {
+                errors.push(format!("{} contains forbidden vocabulary noun {term}", op.name));
+            }
+        }
+        let own = namespace.trim_end_matches("-v1");
+        let count = own.split('-').count();
+        if words.len() >= count
+            && [words[..count].join("-"), words[words.len() - count..].join("-")]
+                .iter()
+                .any(|noun| singular(noun) == singular(own))
+        {
+            errors.push(format!("{} repeats its namespace noun", op.name));
+        }
+    }
+    errors
+}
+
+fn derive_path(op: &Op) -> String {
     let template = Template::parse(&op.path);
     let relative = template.without_root(template.root_len());
     let words = relative.words();
@@ -150,7 +255,7 @@ pub fn derive(op: &Op) -> String {
             below.truncate(at);
             below.push(Word::Noun(noun));
         }
-        let mut action = action(op.method, &below, op.pagination.is_some());
+        let mut action = action(op.method, &compact(&below), op.pagination.is_some());
         if action == "assign-role-membership" || action == "unassign-role-membership" {
             action = action.replace("-membership", "");
         }
@@ -177,7 +282,7 @@ pub fn derive(op: &Op) -> String {
         let at = words.iter().position(|word| *word == Word::Noun("scopes")).unwrap_or(words.len());
         words = words[at..].to_vec();
     } else {
-        words = compact(&words, &namespace);
+        words = compact(&words);
     }
     format!("{namespace}.{}", action(op.method, &words, op.pagination.is_some()))
 }
@@ -222,20 +327,34 @@ fn cloud_alias(collection: &str) -> Option<&'static str> {
     }
 }
 
-fn compact<'a>(words: &[Word<'a>], namespace: &str) -> Vec<Word<'a>> {
-    if action(Method::Get, words, false).split('-').count() <= 4 {
-        return words.to_vec();
-    }
-    words
+fn compact<'a>(words: &[Word<'a>]) -> Vec<Word<'a>> {
+    let scopes: BTreeSet<usize> = words
         .iter()
         .enumerate()
         .filter_map(|(at, word)| {
-            let Word::Noun(noun) = word else { return Some(*word) };
-            let scope = matches!(*noun, "universes" | "universe" | "places" | "games" | "language-codes")
-                && matches!(words.get(at + 1), Some(Word::Param));
-            let repeated = namespace.contains(kebab(noun).as_str()) || namespace.contains(&singular(noun));
-            (!(scope || repeated)).then_some(*word)
+            let Word::Noun(noun) = word else { return None };
+            let scoped = matches!(
+                *noun,
+                "universes"
+                    | "universe"
+                    | "places"
+                    | "games"
+                    | "users"
+                    | "groups"
+                    | "tables"
+                    | "versions"
+                    | "resource"
+                    | "id"
+                    | "languages"
+            ) && matches!(words.get(at + 1), Some(Word::Param))
+                && words[at + 2..].iter().any(|word| matches!(word, Word::Noun(_)));
+            scoped.then_some(at)
         })
+        .collect();
+    words
+        .iter()
+        .enumerate()
+        .filter_map(|(at, word)| (!(scopes.contains(&at) || at > 0 && scopes.contains(&(at - 1)))).then_some(*word))
         .collect()
 }
 
@@ -249,9 +368,6 @@ fn api(path: &str, server: Server) -> String {
     }
     if first == "ordered-data-stores" && path.starts_with("/ordered-data-stores/v1/") {
         return "ordered-data-stores-v1".to_owned();
-    }
-    if matches!(first, "legacy-followings" | "legacy-develop") && path.contains("/v1/") {
-        return format!("{}-v1", first.trim_start_matches("legacy-"));
     }
     let mut name = first.strip_prefix("legacy-").unwrap_or(first);
     for suffix in ["-public-api", "-http-service", "-api", "-service"] {
@@ -302,16 +418,6 @@ fn action(method: Method, words: &[Word<'_>], paginated: bool) -> String {
         (None, Method::Delete) => "delete".to_owned(),
     };
     if nouns.is_empty() { verb } else { format!("{verb}-{}", nouns.join("-")) }
-}
-
-fn method_word(method: Method) -> &'static str {
-    match method {
-        Method::Get => "get",
-        Method::Post => "post",
-        Method::Put => "put",
-        Method::Patch => "patch",
-        Method::Delete => "delete",
-    }
 }
 
 fn version(op: &Op) -> u32 {

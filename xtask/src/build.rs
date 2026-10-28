@@ -31,6 +31,7 @@ pub struct Report {
     pub added: usize,
     pub unresolved_alternatives: Vec<String>,
     pub schemas: usize,
+    pub duplicate_scope_operations: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -55,6 +56,10 @@ pub fn build(input: Input<'_>) -> Result<(Registry, Report), Vec<String>> {
                 .is_some_and(|schemes| schemes.iter().any(|scheme| scheme.get("roblox-api-key").is_some()));
             if !accepts_key {
                 continue;
+            }
+            if let Some(scopes) = operation["x-roblox-scopes"].as_array() {
+                let names: BTreeSet<_> = scopes.iter().map(|scope| scope["name"].as_str()).collect();
+                report.duplicate_scope_operations += usize::from(names.len() < scopes.len());
             }
             drafts.push(draft(&mut outliner, path, *method, item, operation));
         }
@@ -81,14 +86,15 @@ pub fn build(input: Input<'_>) -> Result<(Registry, Report), Vec<String>> {
     errors.extend(input.overlay.apply(&mut drafts));
     report.patched = drafts.iter().filter(|op| !op.patches.is_empty()).count();
 
-    naming::assign(&mut drafts, input.previous, &mut report);
+    naming::assign(&mut drafts, input.previous, &input.overlay.vocabulary, &mut report);
+    errors.extend(naming::consistency(&drafts, &input.overlay.vocabulary));
     errors.extend(
         drafts
             .iter()
             .filter(|op| {
                 op.method == Method::Post
                     && op.safety == Safety::Unsafe
-                    && [op.name.clone(), naming::derive(op)].iter().any(|name| {
+                    && [op.name.clone(), naming::derive(op, &input.overlay.vocabulary)].iter().any(|name| {
                         name.split_once('.').is_some_and(|(_, action)| {
                             ["get-", "list-", "query-", "find-", "check-"].iter().any(|verb| action.starts_with(verb))
                         })
@@ -279,8 +285,10 @@ fn draft(outliner: &mut Outliner<'_>, path: &str, method: Method, item: &Value, 
         })
         .map(|_| Completion::Operation);
     let scopes = operation["x-roblox-scopes"].as_array().map(|scopes| {
+        let mut names = BTreeSet::new();
         scopes
             .iter()
+            .filter(|scope| names.insert(scope["name"].as_str().unwrap_or_default()))
             .map(|scope| Scope {
                 name: scope["name"].as_str().unwrap_or_default().to_owned(),
                 target: scope["targetResourceSpecifier"].as_str().filter(|t| !t.is_empty()).map(str::to_owned),
