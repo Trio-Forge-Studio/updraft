@@ -16,7 +16,7 @@ jobs:
         with:
           components: rustfmt, clippy
           toolchain: 1.99.0
-      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo xtask spec check
