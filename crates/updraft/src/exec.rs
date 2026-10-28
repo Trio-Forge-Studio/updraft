@@ -122,7 +122,7 @@ impl<'a> Executor<'a> {
                         .headers()
                         .get("retry-after")
                         .and_then(|s| s.to_str().ok())
-                        .and_then(|s| s.parse().ok());
+                        .map(|s| s.trim().to_owned());
                     match response.body_mut().with_config().limit(64 * 1024 * 1024).read_to_vec() {
                         Ok(body) => {
                             if (200..300).contains(&status)
@@ -164,6 +164,9 @@ impl<'a> Executor<'a> {
             match judge(op, attempt, history) {
                 Verdict::Redirect(_) => unreachable!("API requests do not follow redirects"),
                 Verdict::Success(body) => {
+                    if body.is_empty() {
+                        return Ok(Reply::Empty);
+                    }
                     return match &op.response {
                         Payload::Json { .. } if !body.is_empty() => serde_json::from_slice(&body)
                             .map(Reply::Json)
@@ -383,7 +386,7 @@ impl Downloads {
                             .headers()
                             .get("retry-after")
                             .and_then(|v| v.to_str().ok())
-                            .and_then(|v| v.parse().ok());
+                            .map(|v| v.trim().to_owned());
                         if (200..300).contains(&status) {
                             match std::io::copy(&mut response.body_mut().as_reader(), temporary.as_file_mut()) {
                                 Ok(bytes) => {
@@ -457,6 +460,33 @@ impl Downloads {
 mod tests {
     use super::*;
 
+    #[test]
+    fn empty_success_ignores_every_declared_payload_kind() {
+        let server = httpmock::MockServer::start();
+        let m = server.mock(|_, t| {
+            t.status(200).body("");
+        });
+        let mut output = Output::new(false);
+        let acceptance = std::cell::RefCell::new(Acceptance::default());
+        let ex = Executor::new(
+            &crate::REGISTRY,
+            Some(server.base_url()),
+            None,
+            Timing { deadline: Duration::ZERO, poll_interval: Duration::ZERO, retry_delay: Some(Duration::ZERO) },
+            &mut output,
+            &acceptance,
+        )
+        .unwrap();
+        for response in
+            [Payload::Empty, Payload::Json { shape: updraft_registry::Shape::Any }, Payload::Text, Payload::Binary]
+        {
+            let mut op = crate::REGISTRY.op("universes.get-place-universe").unwrap().clone();
+            op.response = response;
+            let call = Call::new(&op, vec![], vec![("placeId".into(), "42".into())], None).unwrap();
+            assert!(ex.send(&call).unwrap().json().unwrap().is_null(), "empty 2xx bodies ignore payload metadata");
+        }
+        m.assert_calls(4);
+    }
     #[test]
     fn download_needs_no_registry_operation_or_key() {
         let server = httpmock::MockServer::start();

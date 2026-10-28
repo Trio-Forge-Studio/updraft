@@ -550,3 +550,16 @@ fn an_unresizable_overfull_page_is_a_usage_error() {
     assert_eq!(code(&out), 2, "a smaller item cap cannot silently drop records");
     m.assert_calls(1);
 }
+
+#[test]
+fn retry_after_beyond_integer_range_stops_and_reports_the_server_value() {
+    let server = MockServer::start();
+    let value = "184467440737095516160";
+    let m = server.mock(|_, t| {
+        t.status(429).header("retry-after", value);
+    });
+    let out = command(&server.base_url()).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+    assert_eq!(code(&out), 7);
+    assert_eq!(document(&out)["error"]["retryAfter"], value);
+    m.assert_calls(1);
+}

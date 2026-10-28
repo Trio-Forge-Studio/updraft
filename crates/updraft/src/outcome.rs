@@ -81,7 +81,7 @@ impl Failure {
 pub enum Attempt {
     PageOverflow { can_resize: bool },
     Redirect(String),
-    Response { status: u16, retry_after: Option<u64>, body: Vec<u8> },
+    Response { status: u16, retry_after: Option<String>, body: Vec<u8> },
     Transport { sent: bool, message: String },
 }
 #[derive(Clone, Copy, Default)]
@@ -146,13 +146,21 @@ fn judge_policy(safety: Safety, retry: Option<&RetryPolicy>, attempt: Attempt, h
         }
     };
     let uncertain = history.uncertain || uncertain;
-    let capped = retry_after.is_some_and(|wait| wait > 300);
-    let failure = if capped { failure.with("retryAfter", json!(retry_after)) } else { failure };
+    let requested =
+        retry_after.as_deref().filter(|value| !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()));
+    let seconds = requested.and_then(|value| value.parse::<u64>().ok());
+    let capped = requested.is_some() && seconds.is_none_or(|wait| wait > 300);
+    let failure = if capped {
+        failure.with("retryAfter", seconds.map_or_else(|| json!(requested), |seconds| json!(seconds)))
+    } else {
+        failure
+    };
     let attempts = retry.map_or(DEFAULT_ATTEMPTS, |policy| policy.attempts);
     if retryable && !capped && history.attempts + 1 < attempts {
         let delay = retry.map_or(if history.attempts == 0 { 1 } else { 4 }, |policy| policy.delay_seconds);
         return Verdict::Retry {
-            after_seconds: retry_after.map_or(delay, |wait| wait as u32),
+            after_seconds: seconds
+                .map_or(delay, |wait| u32::try_from(wait).expect("retry waits are capped at 300 seconds")),
             history: History { attempts: history.attempts + 1, uncertain },
         };
     }
@@ -276,7 +284,7 @@ mod tests {
         assert!(matches!(
             judge(
                 &op(Safety::Read),
-                Attempt::Response { status: 429, retry_after: Some(9), body: vec![] },
+                Attempt::Response { status: 429, retry_after: Some("9".into()), body: vec![] },
                 History::default()
             ),
             Verdict::Retry { after_seconds: 9, .. }
