@@ -287,6 +287,124 @@ fn duplicate_overlay_keys_fail_the_build() {
 }
 
 #[test]
+fn read_named_posts_are_safe_to_repeat() {
+    let (_, _, registry) = inputs();
+    for name in [
+        "analytics-benchmark.query-universe-benchmarks",
+        "game-internationalization.get-name-description-games-translation-history",
+        "groups.get-groups-policy",
+        "localization-tables.get-localization-table-table-entries-translation-history",
+    ] {
+        assert_eq!(registry.op(name).unwrap().safety, Safety::Read, "{name} only reads data");
+    }
+}
+
+#[test]
+fn unsafe_read_verbs_need_an_overlay_explanation() {
+    for verb in ["get", "list", "query", "find", "check"] {
+        let (mut spec, mut overlay, previous) = inputs();
+        let path = format!("/future/v1/items:{verb}");
+        spec["paths"][&path] = json!({"post":{"security":[{"roblox-api-key":[]}],"responses":{}}});
+        let errors = build::build(build::Input {
+            spec: &spec,
+            overlay: &overlay,
+            source: previous.source.clone(),
+            previous: Some(&previous),
+        })
+        .unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.contains("unsafe POST with a read verb")),
+            "{verb} needs a safety decision: {errors:?}"
+        );
+        let patch: overlay::Overlay = toml::from_str(&format!(
+            r#"
+[[patch]]
+key = "POST {path}"
+expect = {{ safety = "unsafe" }}
+safety = "unsafe"
+note = "Unsafe read verb: this query also records a billable event."
+"#
+        ))
+        .unwrap();
+        overlay.patch.extend(patch.patch);
+        assert!(
+            build::build(build::Input {
+                spec: &spec,
+                overlay: &overlay,
+                source: previous.source.clone(),
+                previous: Some(&previous),
+            })
+            .is_ok(),
+            "an explicit side-effect explanation permits {verb}"
+        );
+    }
+}
+
+#[test]
+fn overlay_key_guards_ignore_parameter_spelling() {
+    let (mut spec, overlay, previous) = inputs();
+    spec["paths"]["/universes/v1/places/{place_id}/universe"] = json!({"get":{"responses":{}}});
+    let errors = build::build(build::Input {
+        spec: &spec,
+        overlay: &overlay,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+    })
+    .unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.contains("upstream now has GET /universes/v1/places/{placeId}/universe")),
+        "an upstream addition matches regardless of parameter spelling: {errors:?}"
+    );
+}
+
+#[test]
+fn completion_reader_must_resolve_to_itself() {
+    let (mut spec, overlay, previous) = inputs();
+    let reader = spec["paths"]["/assets/v1/operations/{operationId}"].clone();
+    spec["paths"]["/assets/v1/operations/42"] = reader;
+    let errors = build::build(build::Input {
+        spec: &spec,
+        overlay: &overlay,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+    })
+    .unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.contains("resolves to GET /assets/v1/operations/42")),
+        "a more specific reader cannot stand in for the declared reader: {errors:?}"
+    );
+}
+
+#[test]
+fn resource_names_use_complete_singular_nouns() {
+    let (_, _, registry) = inputs();
+    for (plural, singular) in [
+        ("regexes", "regex"),
+        ("boxes", "box"),
+        ("statuses", "status"),
+        ("aliases", "alias"),
+        ("cases", "case"),
+        ("houses", "house"),
+        ("courses", "course"),
+        ("universes", "universe"),
+        ("game-passes", "game-pass"),
+        ("entries", "entry"),
+        ("policies", "policy"),
+        ("repositories", "repository"),
+        ("patches", "patch"),
+        ("forum-categories", "forum-category"),
+    ] {
+        let mut op = registry.op("assets.get-asset").unwrap().clone();
+        op.path = format!("/future/v1/{plural}/{{id}}");
+        assert_eq!(
+            naming::derive(&op),
+            format!("future.get-{singular}"),
+            "{plural} must retain its complete singular noun"
+        );
+    }
+}
+
+#[test]
 fn reader_reports_ties_instead_of_choosing_one() {
     let (_, _, mut r) = inputs();
     let original = r.op("assets.get-operation").unwrap().clone();
@@ -352,4 +470,15 @@ fn semantic_names_match_operation_intent_before_the_first_release() {
         assert!(r.op(new).is_some(), "the operation must describe its intent as {new}");
         assert!(r.op(old).is_none(), "the misleading pre-release name {old} must disappear");
     }
+}
+
+#[test]
+fn body_key_introspection_declares_no_required_scopes() {
+    let (_, _, registry) = inputs();
+    assert_eq!(
+        registry.op("api-keys.introspect").unwrap().auth.required_scopes(),
+        Some([].as_slice()),
+        "introspection requires no scope"
+    );
+    assert_eq!(Auth::ApiKey { scopes: None }.required_scopes(), None, "missing API-key metadata stays unknown");
 }

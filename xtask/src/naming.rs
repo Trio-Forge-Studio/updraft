@@ -198,7 +198,9 @@ fn singular(noun: &str) -> String {
     };
     let last = if let Some(stem) = last.strip_suffix("ies") {
         format!("{stem}y")
-    } else if last.ends_with("sses") || last.ends_with("uses") {
+    } else if matches!(last, "aliases" | "buses" | "statuses")
+        || ["sses", "xes", "ches", "shes", "zzes"].iter().any(|suffix| last.ends_with(suffix))
+    {
         last[..last.len() - 2].to_owned()
     } else if last.ends_with('s') && !last.ends_with("ss") && !last.ends_with("us") && !last.ends_with("is") {
         last[..last.len() - 1].to_owned()

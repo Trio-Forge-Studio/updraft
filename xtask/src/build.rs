@@ -63,8 +63,9 @@ pub fn build(input: Input<'_>) -> Result<(Registry, Report), Vec<String>> {
     report.without_operation_id = drafts.len() - report.with_operation_id;
 
     let mut errors = Vec::new();
+    let upstream_keys: BTreeSet<_> = paths_from_spec(spec).collect();
     for op in &input.overlay.add {
-        if spec["paths"][&op.path].get(method_label(op.method).to_ascii_lowercase()).is_some() {
+        if upstream_keys.contains(&normalized_key(&op.key)) {
             errors.push(format!("upstream now has {}; turn the add into a patch or delete it", op.key));
         }
         drafts.push(op.clone());
@@ -80,6 +81,23 @@ pub fn build(input: Input<'_>) -> Result<(Registry, Report), Vec<String>> {
     report.patched = drafts.iter().filter(|op| !op.patches.is_empty()).count();
 
     naming::assign(&mut drafts, input.previous, &mut report);
+    errors.extend(
+        drafts
+            .iter()
+            .filter(|op| {
+                op.method == Method::Post
+                    && op.safety == Safety::Unsafe
+                    && [op.name.clone(), naming::derive(op)].iter().any(|name| {
+                        name.split_once('.').is_some_and(|(_, action)| {
+                            ["get-", "list-", "query-", "find-", "check-"].iter().any(|verb| action.starts_with(verb))
+                        })
+                    })
+                    && !op.patches.iter().any(|note| note.starts_with("Unsafe read verb:"))
+            })
+            .map(|op| {
+                format!("{}: unsafe POST with a read verb needs an Unsafe read verb: overlay explanation", op.key)
+            }),
+    );
     resolve_alternatives(spec, &mut drafts, &mut report);
     report.ambiguous_templates = ambiguous_templates(&drafts);
     errors.extend(check_param_folds(&drafts));
@@ -136,15 +154,35 @@ fn completion_readers(registry: &Registry) -> Vec<String> {
                 .without_root(template.root_len())
                 .render(|_| Some("42".into()))
                 .expect("reader parameters render");
-            if let Err(error) = registry.reader_of(from, &path) {
-                errors.push(format!(
+            match registry.reader_of(from, &path) {
+                Ok((found, _)) if found.key != reader.key => {
+                    errors.push(format!("{} completion reader {} resolves to {}", from.key, reader.key, found.key))
+                }
+                Err(error) => errors.push(format!(
                     "{} completion reader {} must resolve exactly once: {error:?}",
                     from.key, reader.key
-                ));
+                )),
+                _ => {}
             }
         }
     }
     errors
+}
+
+fn normalized_key(key: &str) -> String {
+    let mut normalized = key.to_owned();
+    for name in Template::parse(key).param_names() {
+        normalized = normalized.replace(&format!("{{{name}}}"), "{}");
+    }
+    normalized
+}
+
+fn paths_from_spec(spec: &Value) -> impl Iterator<Item = String> + '_ {
+    spec["paths"].as_object().into_iter().flatten().flat_map(|(path, item)| {
+        METHODS.iter().filter_map(move |(method_name, method)| {
+            item.get(*method_name).map(|_| normalized_key(&format!("{} {path}", method_label(*method))))
+        })
+    })
 }
 
 pub fn completion_coverage(ops: &[Op], schemas: &BTreeMap<String, Shape>) -> Vec<String> {

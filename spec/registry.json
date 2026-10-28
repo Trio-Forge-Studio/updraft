@@ -950,9 +950,10 @@
         }
       },
       "stability": "experimental",
-      "safety": "unsafe",
+      "safety": "read",
       "patches": [
-        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method.",
+        "This POST only reads data according to its spec summary. Safe to repeat."
       ]
     },
     {
@@ -1215,7 +1216,11 @@
           "type": "any"
         }
       },
-      "auth": "none",
+      "auth": {
+        "bodykey": {
+          "field": "apiKey"
+        }
+      },
       "stability": "unspecified",
       "safety": "read",
       "patches": [
@@ -12265,9 +12270,10 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe",
+      "safety": "read",
       "patches": [
-        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method.",
+        "This POST only reads data according to its spec summary. Safe to repeat."
       ]
     },
     {
@@ -14120,9 +14126,10 @@
       },
       "stability": "unspecified",
       "legacy": true,
-      "safety": "unsafe",
+      "safety": "read",
       "patches": [
-        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method.",
+        "This POST only reads data according to its spec summary. Safe to repeat."
       ]
     },
     {
@@ -14793,9 +14800,10 @@
       },
       "stability": "experimental",
       "legacy": true,
-      "safety": "unsafe",
+      "safety": "read",
       "patches": [
-        "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+        "Before 0.1.0, name the operation for its documented action instead of its HTTP method.",
+        "This POST only reads data according to its spec summary. Safe to repeat."
       ]
     },
     {
@@ -15048,7 +15056,7 @@
       "safety": "unsafe"
     },
     {
-      "name": "log-attribute.create-universe-regexe",
+      "name": "log-attribute.create-universe-regex",
       "key": "POST /log-attribute-http-service/v1/universe-regexes",
       "operation_id": "LogAttributeService_Create",
       "method": "POST",
@@ -15085,10 +15093,13 @@
         }
       },
       "stability": "experimental",
-      "safety": "unsafe"
+      "safety": "unsafe",
+      "patches": [
+        "Before 0.1.0, use regex as the singular of regexes."
+      ]
     },
     {
-      "name": "log-attribute.delete-universe-regexe",
+      "name": "log-attribute.delete-universe-regex",
       "key": "DELETE /log-attribute-http-service/v1/universe-regexes/{id}",
       "operation_id": "LogAttributeService_Delete",
       "method": "DELETE",
@@ -15120,7 +15131,10 @@
         }
       },
       "stability": "experimental",
-      "safety": "idempotent"
+      "safety": "idempotent",
+      "patches": [
+        "Before 0.1.0, use regex as the singular of regexes."
+      ]
     },
     {
       "name": "log-attribute.find-universe-regexes",
@@ -15171,7 +15185,7 @@
       ]
     },
     {
-      "name": "log-attribute.ignore-universe-regexe",
+      "name": "log-attribute.ignore-universe-regex",
       "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}/ignore",
       "operation_id": "LogAttributeService_Ignore",
       "method": "PUT",
@@ -15209,7 +15223,7 @@
       ]
     },
     {
-      "name": "log-attribute.reorder-universe-regexe",
+      "name": "log-attribute.reorder-universe-regex",
       "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}/reorder",
       "operation_id": "LogAttributeService_Reorder",
       "method": "PUT",
@@ -15262,7 +15276,7 @@
       ]
     },
     {
-      "name": "log-attribute.update-universe-regexe",
+      "name": "log-attribute.update-universe-regex",
       "key": "PUT /log-attribute-http-service/v1/universe-regexes/{id}",
       "operation_id": "LogAttributeService_Update",
       "method": "PUT",

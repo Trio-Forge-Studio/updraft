@@ -200,7 +200,17 @@ pub struct Field {
 #[serde(rename_all = "lowercase")]
 pub enum Auth {
     ApiKey { scopes: Option<Vec<Scope>> },
+    BodyKey { field: String },
     None,
+}
+
+impl Auth {
+    pub fn required_scopes(&self) -> Option<&[Scope]> {
+        match self {
+            Self::ApiKey { scopes } => scopes.as_deref(),
+            Self::BodyKey { .. } | Self::None => Some(&[]),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

@@ -1,7 +1,3 @@
-# Corrections to Roblox's OpenAPI document. `cargo xtask spec build` applies them and
-# fails when a key stops matching an operation. Every patch needs a note, which
-# `updraft describe` prints.
-
 [[patch]]
 key = "POST /universes/v1/{universeId}/places/{placeId}/versions"
 expect = { body = "absent", response = { type = "text" }, retry = "absent" }
@@ -66,7 +62,7 @@ method = "POST"
 server = "apis"
 path = "/api-keys/v1/introspect"
 summary = "Describe an API key: its scopes, owner, and whether it is enabled or expired."
-auth = "none"
+auth = { bodykey = { field = "apiKey" } }
 stability = "unspecified"
 safety = "read"
 response = { type = "json", shape = { type = "any" } }
@@ -282,19 +278,19 @@ note = "Before 0.1.0, name the operation for its documented action instead of it
 [[patch]]
 key = "PUT /log-attribute-http-service/v1/universe-regexes/{id}"
 expect = { name = "", operation_id = "LogAttributeService_Update" }
-name = "log-attribute.update-universe-regexe"
+name = "log-attribute.update-universe-regex"
 note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
 
 [[patch]]
 key = "PUT /log-attribute-http-service/v1/universe-regexes/{id}/ignore"
 expect = { name = "", operation_id = "LogAttributeService_Ignore" }
-name = "log-attribute.ignore-universe-regexe"
+name = "log-attribute.ignore-universe-regex"
 note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
 
 [[patch]]
 key = "PUT /log-attribute-http-service/v1/universe-regexes/{id}/reorder"
 expect = { name = "", operation_id = "LogAttributeService_Reorder" }
-name = "log-attribute.reorder-universe-regexe"
+name = "log-attribute.reorder-universe-regex"
 note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
 
 [[patch]]
@@ -392,3 +388,39 @@ key = "POST /server-management/v1/universes/{universeId}/restarts"
 expect = { name = "", operation_id = "Restarts_LaunchRestart" }
 name = "server-management.launch-universe-restart"
 note = "Before 0.1.0, name the operation for its documented action instead of its HTTP method."
+
+[[patch]]
+key = "POST /analytics-benchmark/v1/universes/{universeId}/benchmarks"
+expect = { safety = "unsafe", summary = "Returns daily benchmark percentiles for a metric, comparing a universe against other experiences on Roblox." }
+note = "This POST only reads data according to its spec summary. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /legacy-game-internationalization/v1/name-description/games/translation-history"
+expect = { safety = "unsafe", summary = "Gets the history for name or description in a provided language." }
+note = "This POST only reads data according to its spec summary. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /legacy-groups/v1/groups/policies"
+expect = { safety = "unsafe", summary = "Gets group policy info used for compliance." }
+note = "This POST only reads data according to its spec summary. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /legacy-localization-tables/v1/localization-table/tables/{tableId}/entries/translation-history"
+expect = { safety = "unsafe", summary = "Gets the translation history for each entry passed in." }
+note = "This POST only reads data according to its spec summary. Safe to repeat."
+safety = "read"
+
+[[patch]]
+key = "POST /log-attribute-http-service/v1/universe-regexes"
+expect = { name = "" }
+name = "log-attribute.create-universe-regex"
+note = "Before 0.1.0, use regex as the singular of regexes."
+
+[[patch]]
+key = "DELETE /log-attribute-http-service/v1/universe-regexes/{id}"
+expect = { name = "" }
+name = "log-attribute.delete-universe-regex"
+note = "Before 0.1.0, use regex as the singular of regexes."

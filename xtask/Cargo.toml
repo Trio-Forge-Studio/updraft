@@ -11,5 +11,4 @@ serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"
 toml = "1"
-# `spec update` fetches the latest commit and file from GitHub.
 ureq = { version = "3", features = ["json"] }

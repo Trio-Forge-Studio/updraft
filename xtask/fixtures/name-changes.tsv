@@ -29,9 +29,9 @@ groups.update-group-status	groups.set-group-status
 localization-tables.create-localization-table-table-entries-translation-history	localization-tables.get-localization-table-table-entries-translation-history
 localization-tables.update-autolocalization-game-settings	localization-tables.set-autolocalization-game-settings
 log-attribute.get-universe-regexes	log-attribute.find-universe-regexes
-log-attribute.set-universe-regexe	log-attribute.update-universe-regexe
-log-attribute.set-universe-regexe-ignore	log-attribute.ignore-universe-regexe
-log-attribute.set-universe-regexe-reorder	log-attribute.reorder-universe-regexe
+log-attribute.set-universe-regexe	log-attribute.update-universe-regex
+log-attribute.set-universe-regexe-ignore	log-attribute.ignore-universe-regex
+log-attribute.set-universe-regexe-reorder	log-attribute.reorder-universe-regex
 messaging.create-universe-topic	messaging.publish-universe-topic
 place-version-history.create-version-note	place-version-history.update-version-note
 publish.create-badge-icon	publish.overwrite-badge-icon
@@ -48,3 +48,8 @@ thumbnail-personalization.create-universe-personalization-update	thumbnail-perso
 thumbnail-personalization.create-universe-thumbnails-upload	thumbnail-personalization.upload-universe-thumbnails
 analytics-benchmark.create-universe-benchmark	analytics-benchmark.query-universe-benchmarks
 server-management.create-universe-restart	server-management.launch-universe-restart
+log-attribute.create-universe-regexe	log-attribute.create-universe-regex
+log-attribute.delete-universe-regexe	log-attribute.delete-universe-regex
+log-attribute.ignore-universe-regexe	log-attribute.ignore-universe-regex
+log-attribute.reorder-universe-regexe	log-attribute.reorder-universe-regex
+log-attribute.update-universe-regexe	log-attribute.update-universe-regex
