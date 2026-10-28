@@ -2,22 +2,56 @@ use serde_json::Value;
 use std::io::Write;
 
 pub struct Output {
-    secrets: Vec<String>,
+    secrets: Vec<Credential>,
+    starts: [bool; 256],
     verbose: bool,
+}
+struct Credential {
+    literal: String,
+    characters: Vec<EncodedChar>,
+}
+struct EncodedChar {
+    literal: char,
+    forms: Vec<String>,
+}
+impl Credential {
+    fn new(literal: String) -> Self {
+        let characters = literal
+            .chars()
+            .map(|c| {
+                let unicode: String = c.encode_utf16(&mut [0; 2]).iter().map(|unit| format!("\\u{unit:04x}")).collect();
+                let json = serde_json::to_string(&c.to_string()).expect("a character serializes");
+                let percent: String = c.to_string().bytes().map(|byte| format!("%{byte:02X}")).collect();
+                let mut forms = vec![unicode, json[1..json.len() - 1].into(), percent];
+                if c == '/' {
+                    forms.push("\\/".into());
+                }
+                forms.retain(|form| form.starts_with(['\\', '%']));
+                EncodedChar { literal: c, forms }
+            })
+            .collect();
+        Self { literal, characters }
+    }
 }
 impl Output {
     pub fn new(verbose: bool) -> Self {
-        Self { secrets: vec![], verbose }
+        Self { secrets: vec![], starts: [false; 256], verbose }
     }
     pub fn redact_also(&mut self, secret: &crate::auth::Secret) {
         let key = secret.expose();
         if key.is_empty() {
             return;
         }
-        self.secrets.push(key.into());
         let form = url::form_urlencoded::Serializer::new(String::new()).append_pair("", key).finish();
-        self.secrets.push(form[1..].into());
-        self.secrets.sort_by_key(|s| std::cmp::Reverse(s.len()));
+        for literal in [key, &form[1..]] {
+            let credential = Credential::new(literal.into());
+            self.starts[usize::from(literal.as_bytes()[0])] = true;
+            for encoded in &credential.characters[0].forms {
+                self.starts[usize::from(encoded.as_bytes()[0])] = true;
+            }
+            self.secrets.push(credential);
+        }
+        self.secrets.sort_by_key(|s| std::cmp::Reverse(s.literal.len()));
     }
     pub fn document(&self, value: &Value, error: bool) -> std::io::Result<()> {
         fn clean(output: &Output, value: &Value, error: bool) -> Value {
@@ -44,10 +78,12 @@ impl Output {
         }
     }
     pub fn redact(&self, text: &str) -> String {
-        let mut result = String::new();
+        let mut result = String::with_capacity(text.len());
         let mut remaining = text;
         while !remaining.is_empty() {
-            let matched = self.secrets.iter().find_map(|key| encoded_secret_len(remaining, key));
+            let matched = self.starts[usize::from(remaining.as_bytes()[0])]
+                .then(|| self.secrets.iter().find_map(|key| encoded_secret_len(remaining, key)))
+                .flatten();
             if let Some(length) = matched {
                 result.push_str("<redacted>");
                 remaining = &remaining[length..];
@@ -83,28 +119,30 @@ impl Output {
         text
     }
 }
-fn encoded_secret_len(text: &str, key: &str) -> Option<usize> {
-    if text.starts_with(key) {
-        return Some(key.len());
+fn encoded_secret_len(text: &str, key: &Credential) -> Option<usize> {
+    if text.starts_with(&key.literal) {
+        return Some(key.literal.len());
     }
     let mut at = 0;
-    for c in key.chars() {
+    for c in &key.characters {
         let rest = &text[at..];
-        let unicode: String = c.encode_utf16(&mut [0; 2]).iter().map(|unit| format!("\\u{unit:04x}")).collect();
-        let json = serde_json::to_string(&c.to_string()).expect("a character serializes");
-        let json = &json[1..json.len() - 1];
-        let percent =
-            percent_encoding::utf8_percent_encode(&c.to_string(), percent_encoding::NON_ALPHANUMERIC).to_string();
-        let encoded = [unicode.as_str(), json, if c == '/' { "\\/" } else { "" }, percent.as_str()]
-            .into_iter()
-            .filter(|form| !form.is_empty() && (form.starts_with('\\') || form.starts_with('%')))
+        if !rest.starts_with(['\\', '%']) {
+            if !rest.starts_with(c.literal) {
+                return None;
+            }
+            at += c.literal.len_utf8();
+            continue;
+        }
+        let encoded = c
+            .forms
+            .iter()
             .filter(|form| rest.get(..form.len()).is_some_and(|prefix| prefix.eq_ignore_ascii_case(form)))
-            .map(str::len)
+            .map(String::len)
             .max();
         at += if let Some(length) = encoded {
             length
-        } else if rest.starts_with(c) {
-            c.len_utf8()
+        } else if rest.starts_with(c.literal) {
+            c.literal.len_utf8()
         } else {
             return None;
         };
@@ -116,6 +154,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn redaction_handles_five_megabytes_of_prefixes() {
+        let key = "sentinel-Key_+/%=NeverPrint";
+        let mut output = Output::new(false);
+        output.redact_also(&crate::auth::Secret::from_string(key.into()));
+        let body = key[..1].repeat(5_000_000);
+        let start = std::time::Instant::now();
+        let redacted = output.redact(&body);
+        let elapsed = start.elapsed();
+        assert_eq!(redacted, body, "all five megabytes must be scanned without losing text");
+        eprintln!("redacted 5000000 prefix bytes in {elapsed:?}");
+        if !cfg!(debug_assertions) {
+            assert!(elapsed < std::time::Duration::from_millis(500), "redaction must finish well under a second");
+        }
+    }
+
+    #[test]
     fn literal_credentials_win_over_ambiguous_escape_prefixes() {
         for key in [r"Key\\tail", "Key Space", "Key\"\\+/=", "\u{00e9}\u{1f511}", "Key\tline\n"] {
             let mut output = Output::new(false);
@@ -124,9 +178,17 @@ mod tests {
             let percent = percent_encoding::utf8_percent_encode(key, percent_encoding::NON_ALPHANUMERIC).to_string();
             let form = url::form_urlencoded::Serializer::new(String::new()).append_pair("", key).finish();
             let unicode: String = key.encode_utf16().map(|unit| format!("\\u{unit:04X}")).collect();
-            for encoded in
-                [key, &json[1..json.len() - 1], &percent, &form[1..], &unicode, &unicode.to_ascii_lowercase()]
-            {
+            let fully_encoded: String = key.bytes().map(|byte| format!("%{byte:02X}")).collect();
+            for encoded in [
+                key,
+                &json[1..json.len() - 1],
+                &percent,
+                &form[1..],
+                &unicode,
+                &unicode.to_ascii_lowercase(),
+                &fully_encoded,
+                &fully_encoded.to_ascii_lowercase(),
+            ] {
                 assert_eq!(
                     output.redact(encoded),
                     "<redacted>",

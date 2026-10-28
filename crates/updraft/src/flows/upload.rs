@@ -97,13 +97,12 @@ pub fn run(ex: &Executor<'_>, args: Args, profile: Option<&Profile>) -> Result<V
     };
     ex.note(&format!("Operation {id}: waiting"));
     let resume = format!("updraft asset upload --resume {id}");
-    ex.resume(resume.clone());
+    ex.resume(resume);
     let result = ex
         .finish(super::op(ex.registry, super::GET_OPERATION), json!({"path":format!("operations/{id}"),"done":false}))
-        .map_err(|f| f.with("resume", json!(resume)).with("operationId", json!(id)))?;
+        .map_err(|f| f.with("operationId", json!(id)))?;
     let asset = result["response"]["assetId"].as_str().and_then(|s| super::positive_id(s).ok()).ok_or_else(|| {
         Failure::unavailable("operation finished without a valid assetId, protocol failure")
-            .with("resume", json!(resume))
             .with("detail", result.clone())
     })?;
     Ok(json!({"assetId":asset,"operationId":id,"displayName":display_name,"assetType":asset_type}))

@@ -3,36 +3,31 @@ use updraft_registry::{Op, RetryPolicy, Safety};
 
 pub const DEFAULT_ATTEMPTS: u8 = 3;
 
+pub const UNKNOWN_HINT: &str = "Check the resource in Creations before repeating this request.";
+
 #[derive(Default)]
-pub enum Acceptance {
-    #[default]
-    None,
-    Accepted {
-        resume: Option<String>,
-    },
+pub struct Acceptance {
+    accepted: bool,
+    resume: Option<String>,
 }
 impl Acceptance {
     pub fn record(&mut self) {
-        if matches!(self, Self::None) {
-            *self = Self::Accepted { resume: None };
-        }
+        self.accepted = true;
     }
     pub fn resume(&mut self, command: String) {
-        if let Self::Accepted { resume } = self {
-            resume.get_or_insert(command);
-        }
+        self.resume = Some(command);
     }
     pub fn finish<T>(&self, result: Result<T, Failure>) -> Result<T, Failure> {
         result.map_err(|mut failure| {
-            let Self::Accepted { resume } = self else { return failure };
-            if failure.code == 6 {
+            if let Some(resume) = &self.resume {
+                failure.error["resume"] = json!(resume);
+            }
+            if !self.accepted || failure.code == 6 {
                 return failure;
             }
-            let resume = resume.as_deref().or_else(|| failure.error["resume"].as_str()).map(str::to_owned);
-            if let Some(resume) = resume {
+            if self.resume.is_some() {
                 failure.code = 8;
                 failure.error["kind"] = json!("pending");
-                failure.error["resume"] = json!(resume);
             } else {
                 failure.code = 5;
                 failure.error["kind"] = json!("outcome_unknown");
@@ -41,7 +36,7 @@ impl Acceptance {
                     .as_object_mut()
                     .expect("a failure is an object")
                     .entry("hint")
-                    .or_insert(json!("Check the resource in Creations before repeating this request."));
+                    .or_insert(json!(UNKNOWN_HINT));
             }
             failure
         })
@@ -63,8 +58,7 @@ impl Failure {
         Self::new(7, "unavailable", message)
     }
     pub fn unknown(message: impl Into<String>) -> Self {
-        Self::new(5, "outcome_unknown", message)
-            .with("hint", json!("Check the resource in Creations before repeating this request."))
+        Self::new(5, "outcome_unknown", message).with("hint", json!(UNKNOWN_HINT))
     }
     pub fn remote(message: impl Into<String>, detail: Value) -> Self {
         Self::new(6, "remote_failure", message).with("detail", detail)
@@ -168,7 +162,7 @@ fn judge_policy(safety: Safety, retry: Option<&RetryPolicy>, attempt: Attempt, h
         let mut failure = failure;
         failure.code = 5;
         failure.error["kind"] = json!("outcome_unknown");
-        failure.error["hint"] = json!("Check the resource in Creations before repeating this request.");
+        failure.error["hint"] = json!(UNKNOWN_HINT);
         Verdict::Fail(failure)
     } else {
         Verdict::Fail(failure)
@@ -193,6 +187,16 @@ mod tests {
             Verdict::Fail(f) => f.code,
             _ => panic!("expected a terminal failure"),
         }
+    }
+    #[test]
+    fn recovery_uses_the_latest_explicit_command() {
+        let mut acceptance = Acceptance::default();
+        acceptance.record();
+        acceptance.resume("old command".into());
+        acceptance.resume("new command".into());
+        let failure = acceptance.finish::<()>(Err(Failure::unavailable("poll failed"))).unwrap_err();
+        assert_eq!(failure.code, 8);
+        assert_eq!(failure.error["resume"], "new command", "recovery has one explicit owner");
     }
     #[test]
     fn success_row() {

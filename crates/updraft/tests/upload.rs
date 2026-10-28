@@ -405,7 +405,7 @@ fn luau_reads_all_log_pages_for_success_failure_and_cancellation() {
     }
 }
 #[test]
-fn accepted_luau_unmatched_path_is_pending_and_retains_the_path() {
+fn accepted_luau_unmatched_path_is_unknown_and_retains_the_path() {
     let path = "universes/1/places/2/tasks/unmatched";
     let server = Server::new(vec![Response::json(json!({"path":path,"state":"QUEUED"}))]);
     let dir = tempfile::tempdir().unwrap();
@@ -415,7 +415,7 @@ fn accepted_luau_unmatched_path_is_pending_and_retains_the_path() {
         .args(["luau", "run", file.to_str().unwrap(), "--universe", "1", "--place", "2"])
         .output()
         .unwrap();
-    assert_eq!(code(&out), 8);
+    assert_eq!(code(&out), 5);
     assert_eq!(document(&out)["error"]["path"], path);
     assert_eq!(server.requests().len(), 1);
 }
@@ -499,7 +499,7 @@ fn luau_poll_failure_retains_the_get_resume_command() {
     assert_eq!(code(&out), 8);
     let d = document(&out);
     assert_eq!(d["error"]["resume"], format!("updraft luau run --resume {path}"));
-    assert_eq!(d["error"]["detail"]["path"], path);
+    assert_eq!(d["error"]["last"]["path"], path);
     assert_eq!(server.requests().len(), 4);
     assert_eq!(server.requests().iter().filter(|r| r.head.starts_with("POST ")).count(), 1);
 }
@@ -709,4 +709,141 @@ fn luau_resource_paths_cannot_inject_resume_arguments() {
         assert_eq!(code(&out), 2, "resume arguments must be task resource paths");
         assert_eq!(server.requests().len(), 1);
     }
+}
+
+#[test]
+fn unpollable_luau_acceptance_has_no_resume() {
+    let server = Server::new(vec![Response::json(json!({"path":"universes/1/other/x"}))]);
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("script.luau");
+    std::fs::write(&script, "return 42").unwrap();
+    let out = command(&server.origin)
+        .args(["luau", "run", script.to_str().unwrap(), "--universe", "1", "--place", "2"])
+        .output()
+        .unwrap();
+    let error = &document(&out)["error"];
+    assert_eq!(code(&out), 5, "an accepted task without a reader has an unknown outcome");
+    assert_eq!(error["kind"], "outcome_unknown");
+    assert!(error.get("resume").is_none(), "an unpollable path cannot produce a recovery command");
+    assert_eq!(server.requests().len(), 1, "the accepted write is never repeated");
+}
+
+#[test]
+fn polling_keeps_server_errors_separate_from_the_last_resource() {
+    let first = json!({"path":"universes/1/memory-store/operations/x","done":false});
+    let server =
+        Server::new(vec![Response::json(first.clone()), Response::Body(404, json!({"code":"NOT_FOUND"}).to_string())]);
+    let out =
+        command(&server.origin).args(["call", "cloud.flush-universe-memory-store", "universe_id=1"]).output().unwrap();
+    let error = &document(&out)["error"];
+    assert_eq!(code(&out), 8);
+    assert_eq!(error["detail"], json!({"code":"NOT_FOUND"}), "the server body stays in detail");
+    assert_eq!(error["last"], first, "the last resource is a separate field");
+    assert_eq!(error["status"], 404);
+    assert_eq!(error["resume"], "updraft call GET /cloud/v2/universes/1/memory-store/operations/x");
+
+    let server = Server::new(vec![
+        Response::json(json!({"path":"operations/x"})),
+        Response::Body(403, json!({"message":"nope"}).to_string()),
+    ]);
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("model.fbx");
+    std::fs::write(&file, "fixture").unwrap();
+    let out =
+        command(&server.origin).args(["asset", "upload", file.to_str().unwrap(), "--group", "1"]).output().unwrap();
+    let error = &document(&out)["error"];
+    assert_eq!(code(&out), 8);
+    assert_eq!(error["detail"], json!({"message":"nope"}));
+    assert_eq!(error["last"], json!({"path":"operations/x","done":false}));
+    assert_eq!(error["resume"], "updraft asset upload --resume x", "the flow owns its recovery command");
+    assert_eq!(error["status"], 403);
+    assert_eq!(error["keySource"], "UPDRAFT_API_KEY");
+    assert!(error["requiredScopes"].is_array());
+}
+
+#[test]
+fn every_percent_encoded_key_byte_is_redacted_in_both_cases() {
+    let encoded: String = KEY.bytes().map(|b| format!("%{b:02X}")).collect();
+    for body in [encoded.clone(), encoded.to_ascii_lowercase()] {
+        let server = Server::new(vec![Response::Body(400, body)]);
+        let out = command(&server.origin).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+        assert_eq!(code(&out), 4);
+        assert_eq!(document(&out)["error"]["detail"], "<redacted>", "encoded letters are secret too");
+    }
+}
+
+#[test]
+fn cdn_failures_do_not_blame_the_selected_api_key() {
+    for (status, expected, kind) in
+        [(401, 4, "rejected"), (403, 4, "rejected"), (429, 7, "unavailable"), (503, 7, "unavailable")]
+    {
+        let mut replies = vec![Response::json(json!({"location":"$ORIGIN/file?signature=expired"}))];
+        replies.extend((0..3).map(|_| Response::Body(status, "expired URL".into())));
+        let server = Server::new(replies);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("download");
+        let out = command(&server.origin)
+            .args(["asset", "download", "42", "--out", path.to_str().unwrap()])
+            .output()
+            .unwrap();
+        let error = &document(&out)["error"];
+        assert_eq!(code(&out), expected, "CDN HTTP {status}");
+        assert_eq!(error["kind"], kind);
+        assert_eq!(error["status"], status);
+        for field in ["keySource", "requiredScopes", "scopeMetadata", "profiles"] {
+            assert!(error.get(field).is_none(), "a CDN error has no {field}");
+        }
+        assert!(!path.exists(), "failed downloads leave no output file");
+        assert!(server.requests()[1..].iter().all(|r| !r.head.to_ascii_lowercase().contains("x-api-key:")));
+    }
+}
+
+#[test]
+fn download_retry_waits_end_at_the_deadline() {
+    let server = httpmock::MockServer::start();
+    server.mock(|w, t| {
+        w.path("/asset-delivery-api/v1/assetId/42");
+        t.json_body(json!({"location":format!("{}/file",server.base_url())}));
+    });
+    let download = server.mock(|w, t| {
+        w.path("/file");
+        t.status(503).header("retry-after", "2");
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("download");
+    let start = std::time::Instant::now();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_updraft"))
+        .env("UPDRAFT_ORIGIN", server.base_url())
+        .env("UPDRAFT_API_KEY", KEY)
+        .env("UPDRAFT_CONFIG", "nonexistent-updraft-test-config.toml")
+        .env_remove("UPDRAFT_PROFILE")
+        .args(["--deadline", "0.05", "asset", "download", "42", "--out", path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(code(&out), 7, "{}", document(&out));
+    assert!(start.elapsed() < std::time::Duration::from_secs(1), "the deadline bounds Retry-After sleeps");
+    download.assert_calls(1);
+    assert!(!path.exists());
+}
+
+#[test]
+fn introspection_declares_an_empty_scope_requirement() {
+    let server = Server::new(vec![Response::Body(401, "unauthorized".into())]);
+    let out = command(&server.origin).args(["auth", "check"]).output().unwrap();
+    assert_eq!(code(&out), 3);
+    let error = &document(&out)["error"];
+    assert_eq!(error["requiredScopes"], json!([]), "introspection needs no scopes");
+    assert_eq!(error["scopeMetadata"], "declared");
+}
+
+#[test]
+fn accepted_invalid_json_has_a_short_message_and_redacted_detail() {
+    let server = Server::new(vec![Response::Body(200, format!("invalid response containing {KEY}"))]);
+    let out =
+        command(&server.origin).args(["call", "cloud.flush-universe-memory-store", "universe_id=1"]).output().unwrap();
+    assert_eq!(code(&out), 5);
+    let error = &document(&out)["error"];
+    assert_eq!(error["message"], "invalid JSON response");
+    assert_eq!(error["detail"], "invalid response containing <redacted>");
+    assert_eq!(server.requests().len(), 1);
 }

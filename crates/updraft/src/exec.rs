@@ -42,12 +42,9 @@ impl<'a> Executor<'a> {
         origin: Option<String>,
         key: Option<&'a Secret>,
         timing: Timing,
-        out: &'a mut Output,
+        out: &'a Output,
         acceptance: &'a std::cell::RefCell<Acceptance>,
     ) -> Result<Self, Failure> {
-        if let Some(key) = key {
-            out.redact_also(key);
-        }
         if let Some(origin) = &origin {
             let url = url::Url::parse(origin).map_err(|_| Failure::usage("UPDRAFT_ORIGIN must be an HTTP origin"))?;
             if !matches!(url.scheme(), "http" | "https")
@@ -83,6 +80,7 @@ impl<'a> Executor<'a> {
                 .into(),
             allow_loopback: origin.is_some(),
             retry_delay: timing.retry_delay,
+            retry_budget: timing.deadline,
         };
         Ok(Self { registry, acceptance, agent, downloads, origin, key, timing, out })
     }
@@ -131,6 +129,10 @@ impl<'a> Executor<'a> {
                                 && !body.is_empty()
                                 && serde_json::from_slice::<Value>(&body).is_err()
                             {
+                                if op.safety == updraft_registry::Safety::Unsafe {
+                                    return Err(Failure::unknown("invalid JSON response")
+                                        .with("detail", json!(String::from_utf8_lossy(&body))));
+                                }
                                 Attempt::Transport {
                                     sent: true,
                                     message: format!("invalid JSON: {}", String::from_utf8_lossy(&body)),
@@ -292,15 +294,12 @@ impl<'a> Executor<'a> {
                 Failure::unavailable(format!("no reader matches task path {path}")).with("path", json!(path))
             })?;
             let call = Call::new(reader, decode_captures(captures.0), vec![], None)?;
-            let resume = format!("updraft call GET {}", call.path());
-            self.resume(resume.clone());
             let pending = |detail| {
                 Failure::new(
                     8,
                     "pending",
                     format!("resource is not done after {} s", self.timing.deadline.as_secs_f64()),
                 )
-                .with("resume", json!(resume))
                 .with("detail", detail)
             };
             if Instant::now() >= until {
@@ -316,8 +315,13 @@ impl<'a> Executor<'a> {
             let call = call.with_timeout(until.saturating_duration_since(Instant::now()));
             value = match self.send(&call) {
                 Ok(reply) => reply.json()?,
-                Err(_) if Instant::now() >= until => return Err(pending(value)),
-                Err(failure) => return Err(failure.with("resume", json!(resume)).with("detail", value)),
+                Err(mut failure) => {
+                    if Instant::now() >= until {
+                        failure.code = 8;
+                        failure.error["kind"] = json!("pending");
+                    }
+                    return Err(failure.with("last", value));
+                }
             };
         }
     }
@@ -352,10 +356,12 @@ struct Downloads {
     agent: ureq::Agent,
     allow_loopback: bool,
     retry_delay: Option<Duration>,
+    retry_budget: Duration,
 }
 impl Downloads {
     fn save(&self, location: &str, to: &std::path::Path, overwrite: bool, out: &Output) -> Result<u64, Failure> {
         use std::io::Seek;
+        let retry_until = Instant::now() + self.retry_budget;
         let mut url = url::Url::parse(location).map_err(|_| Failure::unavailable("delivery location is not a URL"))?;
         let parent = to.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| std::path::Path::new("."));
         if to.exists() && !overwrite {
@@ -446,9 +452,19 @@ impl Downloads {
                             delay.as_secs_f64(),
                             history.attempts + 1
                         ));
-                        std::thread::sleep(delay);
+                        let remaining = retry_until.saturating_duration_since(Instant::now());
+                        std::thread::sleep(delay.min(remaining));
+                        if Instant::now() >= retry_until {
+                            return Err(Failure::unavailable("download retry deadline passed"));
+                        }
                     }
-                    Verdict::Fail(failure) => return Err(failure),
+                    Verdict::Fail(mut failure) => {
+                        if failure.code == 3 {
+                            failure.code = 4;
+                            failure.error["kind"] = json!("rejected");
+                        }
+                        return Err(failure);
+                    }
                 }
             }
         }
@@ -466,14 +482,14 @@ mod tests {
         let m = server.mock(|_, t| {
             t.status(200).body("");
         });
-        let mut output = Output::new(false);
+        let output = Output::new(false);
         let acceptance = std::cell::RefCell::new(Acceptance::default());
         let ex = Executor::new(
             &crate::REGISTRY,
             Some(server.base_url()),
             None,
             Timing { deadline: Duration::ZERO, poll_interval: Duration::ZERO, retry_delay: Some(Duration::ZERO) },
-            &mut output,
+            &output,
             &acceptance,
         )
         .unwrap();
@@ -494,14 +510,14 @@ mod tests {
             w.path("/file").header_missing("x-api-key");
             t.body("bytes");
         });
-        let mut output = Output::new(false);
+        let output = Output::new(false);
         let acceptance = std::cell::RefCell::new(Acceptance::default());
         let ex = Executor::new(
             &crate::REGISTRY,
             Some(server.base_url()),
             None,
             Timing { deadline: Duration::ZERO, poll_interval: Duration::ZERO, retry_delay: Some(Duration::ZERO) },
-            &mut output,
+            &output,
             &acceptance,
         )
         .unwrap();
@@ -513,7 +529,7 @@ mod tests {
     }
     #[test]
     fn download_reads_have_idle_budgets_and_binary_uploads_have_ten_minutes() {
-        let mut output = Output::new(false);
+        let output = Output::new(false);
         let acceptance = std::cell::RefCell::new(Acceptance::default());
         let ex = Executor::new(
             &crate::REGISTRY,
@@ -524,7 +540,7 @@ mod tests {
                 poll_interval: Duration::ZERO,
                 retry_delay: Some(Duration::ZERO),
             },
-            &mut output,
+            &output,
             &acceptance,
         )
         .unwrap();

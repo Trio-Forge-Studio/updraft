@@ -76,15 +76,17 @@ fn first(ex: &Executor<'_>, args: Args) -> Result<(Value, &'static updraft_regis
 }
 pub fn run(ex: &Executor<'_>, args: Args) -> Result<Value, Failure> {
     let (first, op) = first(ex, args)?;
-    let resume =
-        first["path"].as_str().filter(|path| !path.is_empty()).map(|path| format!("updraft luau run --resume {path}"));
-    if let Some(resume) = &resume {
-        ex.resume(resume.clone());
+    let resume = first["path"]
+        .as_str()
+        .filter(|path| ex.registry.reader_of(op, path).is_ok())
+        .map(|path| format!("updraft luau run --resume {path}"));
+    if let Some(resume) = resume {
+        ex.resume(resume);
     }
     let (task, failed) = match ex.finish(op, first) {
         Ok(task) => (task, false),
         Err(f) if f.code == 6 => (f.error["detail"].clone(), true),
-        Err(f) => return Err(if let Some(resume) = resume { f.with("resume", json!(resume)) } else { f }),
+        Err(f) => return Err(f),
     };
     let path = task["path"].as_str();
     let log_result = path

@@ -506,11 +506,7 @@ fn auth_failures_share_scope_and_profile_metadata() {
     });
     let out = command(&server.base_url()).args(["auth", "check"]).output().unwrap();
     assert_eq!(code(&out), 3);
-    assert_eq!(
-        document(&out)["error"]["scopeMetadata"],
-        "unknown",
-        "body-key introspection has no declared scope requirements"
-    );
+    assert_eq!(document(&out)["error"]["scopeMetadata"], "declared", "body-key introspection requires no scope");
 }
 
 #[test]

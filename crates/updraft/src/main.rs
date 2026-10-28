@@ -107,6 +107,9 @@ fn run(cli: Cli, output: &mut Output, acceptance: &std::cell::RefCell<Acceptance
             .as_ref()
             .map(|source| auth::load(&config, source).map_err(|message| Failure::new(3, "auth", message)))
             .transpose()?;
+        if let Some(key) = &key {
+            output.redact_also(key);
+        }
         let executor = Executor::new(
             registry,
             std::env::var("UPDRAFT_ORIGIN").ok(),
@@ -141,6 +144,12 @@ fn run(cli: Cli, output: &mut Output, acceptance: &std::cell::RefCell<Acceptance
                             first["path"] = json!(
                                 call.path().trim_start_matches('/').split('/').skip(root).collect::<Vec<_>>().join("/")
                             );
+                        }
+                        if let Some(path) = first["path"].as_str()
+                            && let Ok((reader, captures)) = registry.reader_of(call.op(), path)
+                        {
+                            let poll = Call::new(reader, exec::decode_captures(captures.0), vec![], None)?;
+                            executor.resume(format!("updraft call GET {}", poll.path()));
                         }
                         executor.finish(call.op(), first)
                     } else {

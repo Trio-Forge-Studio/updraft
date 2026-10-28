@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use updraft_registry::{Auth, Op};
+use updraft_registry::Op;
 
 pub struct Secret(String);
 #[derive(Deserialize)]
@@ -70,11 +70,7 @@ impl KeySource {
     }
 }
 pub fn scope_metadata(op: &Op) -> serde_json::Value {
-    let scopes = match &op.auth {
-        Auth::ApiKey { scopes } => scopes.clone(),
-        Auth::BodyKey { .. } => None,
-        Auth::None => Some(vec![]),
-    };
+    let scopes = op.auth.required_scopes();
     json!({"requiredScopes":scopes,"scopeMetadata":if scopes.is_some() { "declared" } else { "unknown" }})
 }
 pub fn decorate(mut failure: Failure, op: &Op, source: Option<&KeySource>, config: &Config) -> Failure {

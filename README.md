@@ -124,7 +124,7 @@ updraft luau run --resume universes/13058/places/1818/versions/7/luau-execution-
 
 Use `-` instead of a file to read UTF-8 Luau from stdin. Scripts are limited to 4 MB. `--version` selects a place version. `--timeout` sets Roblox's execution timeout in seconds.
 
-updraft creates once, polls to COMPLETE, FAILED, or CANCELLED, then reads up to 100 log pages. Results come from `output.results`. FAILED and CANCELLED exit 6 with logs. If reading logs fails or exceeds 100 pages, the result includes `logsComplete: false`, the read error, and a stderr warning. A COMPLETE task still exits 0. An accepted task with an unmatched path exits 8 and retains the path. A missing task identity for unfinished work exits 5. Poll failures retain `updraft luau run --resume <task path>` in `error.resume`. Resume sends GETs only, waits for terminal state, reads logs, and exits 6 on FAILED or CANCELLED.
+updraft creates once, polls to COMPLETE, FAILED, or CANCELLED, then reads up to 100 log pages. Results come from `output.results`. FAILED and CANCELLED exit 6 with logs. If reading logs fails or exceeds 100 pages, the result includes `logsComplete: false`, the read error, and a stderr warning. A COMPLETE task still exits 0. An accepted task with an unmatched path exits 5 and retains the path without a resume command. A resume requires exactly one matching GET reader. A missing task identity for unfinished work exits 5. Poll failures retain `updraft luau run --resume <task path>` in `error.resume`. Resume sends GETs only, waits for terminal state, reads logs, and exits 6 on FAILED or CANCELLED.
 
 ## Exit codes
 
