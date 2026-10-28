@@ -15,6 +15,8 @@ impl Output {
             return;
         }
         self.secrets.push(key.into());
+        let form = url::form_urlencoded::Serializer::new(String::new()).append_pair("", key).finish();
+        self.secrets.push(form[1..].into());
         self.secrets.sort_by_key(|s| std::cmp::Reverse(s.len()));
     }
     pub fn document(&self, value: &Value, error: bool) -> std::io::Result<()> {
@@ -115,21 +117,25 @@ mod tests {
 
     #[test]
     fn literal_credentials_win_over_ambiguous_escape_prefixes() {
-        let key = r"Key\\tail";
-        let mut output = Output::new(false);
-        output.redact_also(&crate::auth::Secret::from_string(key.into()));
-        assert_eq!(
-            output.redact(key),
-            "<redacted>",
-            "consecutive literal backslashes must not be consumed as one escaped character"
-        );
-        let encoded = serde_json::to_string(key).unwrap();
-        assert_eq!(
-            output.redact(&encoded[1..encoded.len() - 1]),
-            "<redacted>",
-            "JSON escaping must redact the same selected credential"
-        );
+        for key in [r"Key\\tail", "Key Space", "Key\"\\+/=", "\u{00e9}\u{1f511}", "Key\tline\n"] {
+            let mut output = Output::new(false);
+            output.redact_also(&crate::auth::Secret::from_string(key.into()));
+            let json = serde_json::to_string(key).unwrap();
+            let percent = percent_encoding::utf8_percent_encode(key, percent_encoding::NON_ALPHANUMERIC).to_string();
+            let form = url::form_urlencoded::Serializer::new(String::new()).append_pair("", key).finish();
+            let unicode: String = key.encode_utf16().map(|unit| format!("\\u{unit:04X}")).collect();
+            for encoded in
+                [key, &json[1..json.len() - 1], &percent, &form[1..], &unicode, &unicode.to_ascii_lowercase()]
+            {
+                assert_eq!(
+                    output.redact(encoded),
+                    "<redacted>",
+                    "literal credentials and their JSON, Unicode, percent, and form encodings must be redacted"
+                );
+            }
+        }
     }
+
     #[test]
     fn keys_and_signed_urls_are_redacted() {
         let mut output = Output::new(false);
