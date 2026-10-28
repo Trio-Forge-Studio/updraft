@@ -23,6 +23,7 @@ pub struct Report {
     pub without_operation_id: usize,
     pub kept_names: usize,
     pub name_collisions: Vec<Collision>,
+    pub unaliased_cloud_collections: BTreeSet<String>,
     pub ambiguous_templates: Vec<Vec<String>>,
     pub paginated: usize,
     pub long_running: usize,

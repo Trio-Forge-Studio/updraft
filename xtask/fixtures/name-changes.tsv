@@ -1,55 +1,69 @@
-ads-management.get-advertisable-universes	ads-management.list-advertisable-universes
-analytics-query.create-universe-dimension-value	analytics-query.query-universe-dimension-values
-analytics-query.create-universe-metric	analytics-query.query-universe-metrics
-asset-permissions.update-assets-permissions	asset-permissions.grant-assets-permissions
-creator-configs.create-configs-universe-repository-publish	creator-configs.publish-configs-universe-repository-draft
-creator-configs.create-configs-universe-repository-revision-restore	creator-configs.restore-configs-universe-repository-revision
-creator-configs.delete-experimentation-universe-experiment	creator-configs.discard-experimentation-universe-experiment
-creator-configs.get-configs-universe-repository-revisions	creator-configs.list-configs-universe-repository-revisions
-creator-configs.get-experimentation-universe-experiments	creator-configs.list-experimentation-universe-experiments
-datastores.create-universe-standard-datastores-datastore-entries-entry	datastores.set-universe-standard-datastores-datastore-entries-entry
-datastores.create-universe-standard-datastores-datastore-entries-entry-increment	datastores.increment-universe-standard-datastores-datastore-entries-entry
-datastores.get-universe-standard-datastores-datastore-entries-entry-versions	datastores.list-universe-standard-datastores-datastore-entries-entry-versions
-develop.create-universe-activate	develop.activate-universe
-develop.create-universe-deactivate	develop.deactivate-universe
-develop.delete-teamtest	develop.close-teamtest
-develop.delete-universe-teamcreate-memberships	develop.remove-universe-teamcreate-memberships
-develop.get-place-teamcreate-active-session-members	develop.list-place-teamcreate-active-session-members
-game-internationalization.create-badge-icons-language-code	game-internationalization.update-badge-icons-language-code
-game-internationalization.create-developer-product-icons-language-code	game-internationalization.update-developer-product-icons-language-code
-game-internationalization.create-game-icon-game-language-code	game-internationalization.update-game-icon-game-language-code
-game-internationalization.create-game-pass-icons-language-code	game-internationalization.update-game-pass-icons-language-code
-game-internationalization.create-game-thumbnails-game-language-code-alt-text	game-internationalization.update-game-thumbnails-game-language-code-alt-text
-game-internationalization.create-game-thumbnails-game-language-code-image	game-internationalization.upload-game-thumbnails-game-language-code-image
-game-internationalization.create-game-thumbnails-game-language-code-images-order	game-internationalization.order-game-thumbnails-game-language-code-images
-game-internationalization.create-name-description-games-translation-history	game-internationalization.get-name-description-games-translation-history
-game-internationalization.update-source-language-game	game-internationalization.set-source-language-game
-groups.create-groups-policy	groups.get-groups-policy
-groups.update-group-status	groups.set-group-status
-localization-tables.create-localization-table-table-entries-translation-history	localization-tables.get-localization-table-table-entries-translation-history
-localization-tables.update-autolocalization-game-settings	localization-tables.set-autolocalization-game-settings
-log-attribute.get-universe-regexes	log-attribute.find-universe-regexes
-log-attribute.set-universe-regexe	log-attribute.update-universe-regex
-log-attribute.set-universe-regexe-ignore	log-attribute.ignore-universe-regex
-log-attribute.set-universe-regexe-reorder	log-attribute.reorder-universe-regex
-messaging.create-universe-topic	messaging.publish-universe-topic
-place-version-history.create-version-note	place-version-history.update-version-note
-publish.create-badge-icon	publish.overwrite-badge-icon
-server-management.filter-options-universe-place-game-servers	server-management.get-filter-options-universe-place-game-servers
-server-management.get-universe-restarts	server-management.list-universe-restarts
-service-efficiency.create-payments-group	service-efficiency.submit-payments-group
-service-efficiency.create-payments-user	service-efficiency.submit-payments-user
-service-efficiency.get-eligibility-group	service-efficiency.check-eligibility-group
-service-efficiency.get-eligibility-user	service-efficiency.check-eligibility-user
-service-efficiency.get-payment-profiles-user	service-efficiency.list-payment-profiles-user
-service-efficiency.set-accounts-group	service-efficiency.update-accounts-group
-service-efficiency.set-accounts-user	service-efficiency.update-accounts-user
-thumbnail-personalization.create-universe-personalization-update	thumbnail-personalization.update-universe-personalization
-thumbnail-personalization.create-universe-thumbnails-upload	thumbnail-personalization.upload-universe-thumbnails
-analytics-benchmark.create-universe-benchmark	analytics-benchmark.query-universe-benchmarks
-server-management.create-universe-restart	server-management.launch-universe-restart
-log-attribute.create-universe-regexe	log-attribute.create-universe-regex
-log-attribute.delete-universe-regexe	log-attribute.delete-universe-regex
-log-attribute.ignore-universe-regexe	log-attribute.ignore-universe-regex
-log-attribute.reorder-universe-regexe	log-attribute.reorder-universe-regex
-log-attribute.update-universe-regexe	log-attribute.update-universe-regex
+GET /ads-management/v1/advertisable-universes	ads-management.list-advertisable-universes
+POST /analytics-query-api/v1/universes/{universeId}/dimension-values	analytics-query.query-universe-dimension-values
+POST /analytics-query-api/v1/universes/{universeId}/metrics	analytics-query.query-universe-metrics
+PATCH /asset-permissions-api/v1/assets/permissions	asset-permissions.grant-assets-permissions
+POST /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/publish	creator-configs.publish-draft
+POST /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/revisions/{revisionId}/restore	creator-configs.restore-revision
+DELETE /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments/{experimentId}	creator-configs.discard-experiment
+GET /creator-configs-public-api/v1/configs/universes/{universeId}/repositories/{repository}/revisions	creator-configs.list-revisions
+GET /creator-configs-public-api/v1/experimentation/universes/{universeId}/experiments	creator-configs.list-experiments
+POST /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry	data-stores-v1.set-entry
+POST /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/increment	data-stores-v1.increment-entry
+GET /datastores/v1/universes/{universeId}/standard-datastores/datastore/entries/entry/versions	data-stores-v1.list-entry-versions
+POST /legacy-develop/v1/universes/{universeId}/activate	develop-v1.activate-universe
+POST /legacy-develop/v1/universes/{universeId}/deactivate	develop-v1.deactivate-universe
+DELETE /legacy-develop/v2/teamtest/{placeId}	develop.close-teamtest
+DELETE /legacy-develop/v1/universes/{universeId}/teamcreate/memberships	develop-v1.remove-universe-teamcreate-memberships
+GET /legacy-develop/v1/places/{placeId}/teamcreate/active_session/members	develop-v1.list-active-session-members
+POST /legacy-game-internationalization/v1/badges/{badgeId}/icons/language-codes/{languageCode}	game-internationalization.update-badge-icons
+POST /legacy-game-internationalization/v1/developer-products/{developerProductId}/icons/language-codes/{languageCode}	game-internationalization.update-product-icons
+POST /legacy-game-internationalization/v1/game-icon/games/{gameId}/language-codes/{languageCode}	game-internationalization.update-icon-game
+POST /legacy-game-internationalization/v1/game-passes/{gamePassId}/icons/language-codes/{languageCode}	game-internationalization.update-pass-icons
+POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/alt-text	game-internationalization.update-thumbnails-alt-text
+POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/image	game-internationalization.upload-thumbnails-image
+POST /legacy-game-internationalization/v1/game-thumbnails/games/{gameId}/language-codes/{languageCode}/images/order	game-internationalization.order-thumbnails-images
+POST /legacy-game-internationalization/v1/name-description/games/translation-history	game-internationalization.get-text-translation-history
+PATCH /legacy-game-internationalization/v1/source-language/games/{gameId}	game-internationalization.set-source-language-game
+POST /legacy-groups/v1/groups/policies	groups.get-groups-policy
+PATCH /legacy-groups/v1/groups/{groupId}/status	groups.set-group-status
+POST /legacy-localization-tables/v1/localization-table/tables/{tableId}/entries/translation-history	localization-tables.get-entries-translation-history
+PATCH /legacy-localization-tables/v1/autolocalization/games/{gameId}/settings	localization-tables.set-autolocalization-game-settings
+GET /log-attribute-http-service/v1/universe-regexes	log-attribute.find-universe-regexes
+PUT /log-attribute-http-service/v1/universe-regexes/{id}	log-attribute.update-universe-regex
+PUT /log-attribute-http-service/v1/universe-regexes/{id}/ignore	log-attribute.ignore-universe-regex
+PUT /log-attribute-http-service/v1/universe-regexes/{id}/reorder	log-attribute.reorder-universe-regex
+POST /messaging-service/v1/universes/{universeId}/topics/{topic}	messaging.publish-universe-topic
+POST /place-version-history-api/v1/{placeId}/version/{version}/notes	place-version-history.update-version-note
+POST /legacy-publish/v1/badges/{badgeId}/icon	publish.overwrite-badge-icon
+GET /server-management/v1/universes/{universeId}/places/{placeId}/game-servers:filter-options	server-management.get-filter-options-servers
+GET /server-management/v1/universes/{universeId}/restarts	server-management.list-universe-restarts
+POST /service-efficiency-api/v1/payments/groups/{groupId}	service-efficiency.submit-payments-group
+POST /service-efficiency-api/v1/payments/users/{userId}	service-efficiency.submit-payments-user
+GET /service-efficiency-api/v1/eligibility/groups/{groupId}	service-efficiency.check-eligibility-group
+GET /service-efficiency-api/v1/eligibility/users/{userId}	service-efficiency.check-eligibility-user
+GET /service-efficiency-api/v1/payment_profiles/users/{userId}	service-efficiency.list-payment-profiles-user
+PUT /service-efficiency-api/v1/accounts/groups/{groupId}	service-efficiency.update-accounts-group
+PUT /service-efficiency-api/v1/accounts/users/{userId}	service-efficiency.update-accounts-user
+POST /thumbnail-personalization-api/v1/universes/{universeId}/personalization/update	thumbnail-personalization.update-universe-personalization
+POST /thumbnail-personalization-api/v1/universes/{universeId}/thumbnails/uploads	thumbnail-personalization.upload-universe-thumbnails
+POST /analytics-benchmark/v1/universes/{universeId}/benchmarks	analytics-benchmark.query-universe-benchmarks
+POST /server-management/v1/universes/{universeId}/restarts	server-management.launch-universe-restart
+GET /legacy-localization-tables/v1/localization-table/tables/{assetId}	localization-tables.get-asset-table
+GET /legacy-localization-tables/v1/localization-table/tables/{tableId}	localization-tables.get-table
+POST /toolbox-service/v2/assets:search	toolbox.search-assets-body
+GET /legacy-followings/v1/users/{userId}/universes	followings-v1.list-user-universes
+GET /legacy-followings/v2/users/{userId}/universes	followings.list-user-universes
+GET /analytics-alert-control-plane/v1/resource/{resourceType}/id/{resourceId}/alerts/incidents	analytics-alert-control-plane.get-incidents
+GET /legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description	game-internationalization.get-product-name-description
+GET /legacy-game-internationalization/v1/game-passes/{gamePassId}/name-description	game-internationalization.get-pass-name-description
+GET /legacy-game-internationalization/v1/supported-languages/games/{gameId}/automatic-translation-status	game-internationalization.get-translation-status
+GET /legacy-game-internationalization/v1/supported-languages/games/{gameId}/universe-display-info-automatic-translation-settings	game-internationalization.get-display-translation-settings
+PATCH /legacy-game-internationalization/v1/supported-languages/games/{gameId}/languages/{languageCode}/automatic-translation-status	game-internationalization.update-translation-status
+PATCH /legacy-game-internationalization/v1/supported-languages/games/{gameId}/languages/{languageCode}/image-translation-status	game-internationalization.update-image-translation-status
+PATCH /legacy-game-internationalization/v1/supported-languages/games/{gameId}/languages/{languageCode}/universe-display-info-automatic-translation-settings	game-internationalization.update-display-translation-settings
+DELETE /legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description/language-codes/{languageCode}	game-internationalization.delete-product-name-description
+DELETE /legacy-game-internationalization/v1/game-passes/{gamePassId}/name-description/language-codes/{languageCode}	game-internationalization.delete-pass-name-description
+PATCH /legacy-game-internationalization/v1/developer-products/{developerProductId}/name-description/language-codes/{languageCode}	game-internationalization.update-product-name-description
+PATCH /legacy-game-internationalization/v1/game-passes/{gamePassId}/name-description/language-codes/{languageCode}	game-internationalization.update-pass-name-description
+GET /server-management/v1/universes/{universeId}/places/{placeId}/versions/{versionNumber}/game-servers/{jobId}/logs	server-management.list-version-server-logs
+GET /universe-performance-raqi/v1/events/logging/universe/{universeId}/log-details	universe-performance-raqi.get-log-details

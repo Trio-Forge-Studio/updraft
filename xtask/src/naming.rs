@@ -6,6 +6,14 @@ use updraft_registry::{Method, Op, Registry, Server};
 use crate::build::{Collision, Report};
 
 pub fn assign(ops: &mut [Op], previous: Option<&Registry>, report: &mut Report) {
+    for op in ops.iter().filter(|op| op.path.starts_with("/cloud/v2/")) {
+        let template = Template::parse(&op.path);
+        let relative = template.without_root(template.root_len());
+        let family = cloud_family(&relative.words());
+        if cloud_alias(family.collection).is_none() {
+            report.unaliased_cloud_collections.insert(family.collection.to_owned());
+        }
+    }
     let mut taken: BTreeSet<String> = BTreeSet::new();
     if let Some(previous) = previous {
         let surviving: BTreeSet<&str> = ops.iter().map(|op| op.key.as_str()).collect();
@@ -93,7 +101,138 @@ fn disambiguate(ops: &[Op], members: &[usize], derived: &str, taken: &BTreeSet<S
 
 pub fn derive(op: &Op) -> String {
     let template = Template::parse(&op.path);
-    format!("{}.{}", api(&op.path, op.server), action(op.method, &template, op.pagination.is_some()))
+    let relative = template.without_root(template.root_len());
+    let words = relative.words();
+    if op.path.starts_with("/cloud/v2/") {
+        let family = cloud_family(&words);
+        let namespace = cloud_alias(family.collection).unwrap_or(family.collection);
+        let mut below = words[family.at + 1..].to_vec();
+        if matches!(below.first(), Some(Word::Param)) {
+            below.remove(0);
+        }
+        if family.collection.starts_with("luau-execution-") {
+            below.retain(|word| !matches!(word, Word::Noun("tasks")));
+            if family.collection.ends_with("binary-inputs") {
+                below.insert(0, Word::Noun("binary-inputs"));
+            } else {
+                below.insert(0, Word::Noun("tasks"));
+                if op.method == Method::Post && words[..family.at].contains(&Word::Noun("versions")) {
+                    below.insert(0, Word::Noun("version"));
+                }
+            }
+        } else if family.collection == "instances" {
+            below.insert(0, Word::Noun("instance"));
+        } else if family.collection == "creator-store-products" {
+            let noun = if words.get(family.at + 1) == Some(&Word::Param) { "product" } else { "products" };
+            below.insert(0, Word::Noun(noun));
+        }
+        if family.collection == "user-restrictions" && words[..family.at].contains(&Word::Noun("places")) {
+            below.insert(0, Word::Noun("place"));
+        }
+        if let Some(at) = below.iter().position(|word| *word == Word::Noun("forum-categories")) {
+            let last = below
+                .iter()
+                .filter_map(|word| match word {
+                    Word::Noun(noun) => Some(*noun),
+                    _ => None,
+                })
+                .next_back()
+                .unwrap();
+            let noun = match last {
+                "posts" => "forum-posts",
+                "comments" => "forum-comments",
+                _ => "forum-categories",
+            };
+            below.truncate(at);
+            below.push(Word::Noun(noun));
+        }
+        let mut action = action(op.method, &below, op.pagination.is_some());
+        if action == "assign-role-membership" || action == "unassign-role-membership" {
+            action = action.replace("-membership", "");
+        }
+        return format!("{namespace}.{action}");
+    }
+    let namespace = api(&op.path, op.server);
+    let mut words = words;
+    if namespace == "data-stores-v1" {
+        let at = words.iter().position(|word| *word == Word::Noun("entries"));
+        words = at.map_or_else(Vec::new, |at| words[at..].to_vec());
+        words = words
+            .iter()
+            .enumerate()
+            .filter_map(|(at, word)| {
+                let redundant = matches!(
+                    (word, words.get(at + 1)),
+                    (Word::Noun("entries"), Some(Word::Noun("entry")))
+                        | (Word::Noun("versions"), Some(Word::Noun("version")))
+                );
+                (!redundant).then_some(*word)
+            })
+            .collect();
+    } else if namespace == "ordered-data-stores-v1" {
+        let at = words.iter().position(|word| *word == Word::Noun("scopes")).unwrap_or(words.len());
+        words = words[at..].to_vec();
+    } else {
+        words = compact(&words, &namespace);
+    }
+    format!("{namespace}.{}", action(op.method, &words, op.pagination.is_some()))
+}
+
+struct Family<'a> {
+    collection: &'a str,
+    at: usize,
+}
+
+fn cloud_family<'a>(words: &[Word<'a>]) -> Family<'a> {
+    let mut at = 0;
+    while matches!(words.get(at), Some(Word::Noun("universes" | "places")))
+        && matches!(words.get(at + 1), Some(Word::Param))
+        && matches!(words.get(at + 2), Some(Word::Noun(_)))
+    {
+        at += 2;
+    }
+    if words.get(at) == Some(&Word::Noun("versions"))
+        && matches!(words.get(at + 2), Some(Word::Noun(noun)) if noun.starts_with("luau-execution-"))
+    {
+        at += 2;
+    }
+    if words.get(at) == Some(&Word::Noun("subscription-products"))
+        && words.get(at + 2) == Some(&Word::Noun("subscriptions"))
+    {
+        at += 2;
+    }
+    let collection = match words[at] {
+        Word::Noun(noun) => noun,
+        _ => unreachable!("a resource begins with a collection"),
+    };
+    Family { collection, at }
+}
+
+fn cloud_alias(collection: &str) -> Option<&'static str> {
+    match collection {
+        "instances" => Some("places"),
+        name if name.starts_with("luau-execution-") => Some("luau"),
+        "creator-store-products" => Some("creator-store"),
+        "subscriptions" => Some("subscriptions"),
+        _ => None,
+    }
+}
+
+fn compact<'a>(words: &[Word<'a>], namespace: &str) -> Vec<Word<'a>> {
+    if action(Method::Get, words, false).split('-').count() <= 4 {
+        return words.to_vec();
+    }
+    words
+        .iter()
+        .enumerate()
+        .filter_map(|(at, word)| {
+            let Word::Noun(noun) = word else { return Some(*word) };
+            let scope = matches!(*noun, "universes" | "universe" | "places" | "games" | "language-codes")
+                && matches!(words.get(at + 1), Some(Word::Param));
+            let repeated = namespace.contains(kebab(noun).as_str()) || namespace.contains(&singular(noun));
+            (!(scope || repeated)).then_some(*word)
+        })
+        .collect()
 }
 
 fn api(path: &str, server: Server) -> String {
@@ -101,6 +240,15 @@ fn api(path: &str, server: Server) -> String {
         return "thumbnails".to_owned();
     }
     let first = path.trim_start_matches('/').split('/').next().unwrap_or_default();
+    if first == "datastores" {
+        return "data-stores-v1".to_owned();
+    }
+    if first == "ordered-data-stores" && path.starts_with("/ordered-data-stores/v1/") {
+        return "ordered-data-stores-v1".to_owned();
+    }
+    if matches!(first, "legacy-followings" | "legacy-develop") && path.contains("/v1/") {
+        return format!("{}-v1", first.trim_start_matches("legacy-"));
+    }
     let mut name = first.strip_prefix("legacy-").unwrap_or(first);
     for suffix in ["-public-api", "-http-service", "-api", "-service"] {
         if let Some(stripped) = name.strip_suffix(suffix) {
@@ -111,9 +259,7 @@ fn api(path: &str, server: Server) -> String {
     name.to_owned()
 }
 
-fn action(method: Method, template: &Template, paginated: bool) -> String {
-    let relative = template.without_root(template.root_len());
-    let words = relative.words();
+fn action(method: Method, words: &[Word<'_>], paginated: bool) -> String {
     let mut nouns: Vec<String> = Vec::new();
     let mut custom = None;
     for (at, word) in words.iter().enumerate() {
@@ -131,6 +277,13 @@ fn action(method: Method, template: &Template, paginated: bool) -> String {
     }
     let ends_in_param = matches!(words.last(), Some(Word::Param));
     let verb = match (custom, method) {
+        (Some(verb), _) if verb.starts_with("list-") => {
+            let (verb, rest) = verb.split_once('-').unwrap_or((&verb, ""));
+            if !rest.is_empty() {
+                nouns.push(rest.to_owned());
+            }
+            verb.to_owned()
+        }
         (Some(verb), _) => verb,
         (None, Method::Get) if ends_in_param || !paginated => "get".to_owned(),
         (None, Method::Get) => "list".to_owned(),

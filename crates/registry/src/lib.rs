@@ -97,7 +97,7 @@ impl Registry {
 
     pub fn find(&self, query: &str, limit: usize) -> Vec<Hit> {
         let query = tokens(query);
-        let mut hits: Vec<Hit> = self
+        let mut hits: Vec<_> = self
             .ops
             .iter()
             .filter_map(|op| {
@@ -115,28 +115,54 @@ impl Registry {
                     (tokens(&op.tags.join(" ")), 3),
                     (tokens(&op.summary), 2),
                     (tokens(&op.description), 1),
+                    (
+                        tokens(match op.body.as_ref().map(|body| &body.media) {
+                            Some(BodyMedia::Binary { .. }) => "upload",
+                            Some(BodyMedia::Multipart { parts })
+                                if parts.iter().any(|part| part.kind == PartKind::File) =>
+                            {
+                                "upload"
+                            }
+                            _ => "",
+                        }),
+                        1,
+                    ),
                 ];
-                let mut score = 0;
+                let mut exact = 0;
+                let mut in_name = 0;
+                let mut field_score = 0;
                 for word in &query {
-                    let weight = fields
+                    let (is_exact, is_name, weight) = fields
                         .iter()
-                        .filter(|(words, _)| words.iter().any(|w| w.contains(word)))
-                        .map(|(_, weight)| *weight)
+                        .flat_map(|(words, weight)| {
+                            words.iter().filter_map(move |token| {
+                                token.contains(word).then_some((token == word, *weight == 8, *weight))
+                            })
+                        })
                         .max()?;
-                    score += weight;
+                    exact += u32::from(is_exact);
+                    in_name += u32::from(is_name);
+                    field_score += weight;
                 }
-                Some(Hit {
-                    name: op.name.clone(),
-                    method: op.method,
-                    path: op.path.clone(),
-                    summary: op.summary.clone(),
-                    score,
-                })
+                let unmatched =
+                    fields[0].0.iter().filter(|token| !query.iter().any(|word| token.contains(word))).count();
+                let rank =
+                    (exact, in_name, std::cmp::Reverse(unmatched), std::cmp::Reverse(op.name.len()), field_score);
+                Some((
+                    rank,
+                    Hit {
+                        name: op.name.clone(),
+                        method: op.method,
+                        path: op.path.clone(),
+                        summary: op.summary.clone(),
+                        score: exact * 1000 + in_name * 100 + field_score,
+                    },
+                ))
             })
             .collect();
-        hits.sort_by(|a, b| b.score.cmp(&a.score).then(a.name.cmp(&b.name)));
+        hits.sort_by(|(a, x), (b, y)| b.cmp(a).then(x.name.cmp(&y.name)));
         hits.truncate(limit);
-        hits
+        hits.into_iter().map(|(_, hit)| hit).collect()
     }
 
     fn suggest(&self, name: &str) -> Vec<String> {
@@ -160,7 +186,18 @@ fn tokens(text: &str) -> Vec<String> {
         }
         lower = c.is_ascii_lowercase() || c.is_ascii_digit();
     }
-    split.split_whitespace().map(str::to_owned).collect()
+    split
+        .split_whitespace()
+        .map(|word| {
+            if let Some(stem) = word.strip_suffix("ies") {
+                format!("{stem}y")
+            } else if word.ends_with('s') && !word.ends_with("ss") && !word.ends_with("us") && !word.ends_with("is") {
+                word[..word.len() - 1].to_owned()
+            } else {
+                word.to_owned()
+            }
+        })
+        .collect()
 }
 
 fn distance(a: &str, b: &str) -> usize {
@@ -175,4 +212,61 @@ fn distance(a: &str, b: &str) -> usize {
         }
     }
     row[b.len()]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn search(operations: &[(&str, &str)], query: &str) -> Vec<String> {
+        let mut registry: Registry = serde_json::from_str(include_str!("../../../spec/registry.json")).unwrap();
+        let base = registry.ops[0].clone();
+        registry.ops = operations
+            .iter()
+            .map(|(name, path)| {
+                let mut op = base.clone();
+                op.name = (*name).into();
+                op.path = (*path).into();
+                op.operation_id = None;
+                op.auth = Auth::None;
+                op.summary.clear();
+                op.description.clear();
+                op.tags.clear();
+                op.body = None;
+                op
+            })
+            .collect();
+        registry.find(query, 10).into_iter().map(|hit| hit.name).collect()
+    }
+
+    #[test]
+    fn exact_tokens_beat_substrings_even_in_a_name() {
+        assert_eq!(
+            search(&[("entries.get", "/store"), ("storehouse.get", "/items")], "store"),
+            ["entries.get", "storehouse.get"]
+        );
+    }
+
+    #[test]
+    fn name_matches_beat_path_matches() {
+        assert_eq!(
+            search(&[("records.get", "/store"), ("store.get-records", "/items")], "store"),
+            ["store.get-records", "records.get"]
+        );
+    }
+
+    #[test]
+    fn coverage_then_length_break_name_match_ties() {
+        assert_eq!(
+            search(
+                &[
+                    ("stores.get-entry-revision", "/items"),
+                    ("stores.delete-entry", "/items"),
+                    ("stores.get-entry", "/items")
+                ],
+                "store entry"
+            ),
+            ["stores.get-entry", "stores.delete-entry", "stores.get-entry-revision"]
+        );
+    }
 }

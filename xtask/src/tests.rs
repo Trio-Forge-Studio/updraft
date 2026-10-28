@@ -291,9 +291,9 @@ fn read_named_posts_are_safe_to_repeat() {
     let (_, _, registry) = inputs();
     for name in [
         "analytics-benchmark.query-universe-benchmarks",
-        "game-internationalization.get-name-description-games-translation-history",
+        "game-internationalization.get-text-translation-history",
         "groups.get-groups-policy",
-        "localization-tables.get-localization-table-table-entries-translation-history",
+        "localization-tables.get-entries-translation-history",
     ] {
         assert_eq!(registry.op(name).unwrap().safety, Safety::Read, "{name} only reads data");
     }
@@ -447,10 +447,7 @@ fn operation_shaped_gets_and_luau_readers_have_completions() {
     let (r, _) = result.unwrap();
     assert_eq!(r.by_key("GET /assets/v99/operations/{id}").unwrap().completion, Some(Completion::Operation));
     assert!(
-        matches!(
-            r.op("cloud.get-universe-place-version-luau-execution-session-task").unwrap().completion,
-            Some(Completion::State { .. })
-        ),
+        matches!(r.op("luau.get-task").unwrap().completion, Some(Completion::State { .. })),
         "Luau resume readers must wait for a terminal state"
     );
 }
@@ -466,10 +463,78 @@ fn semantic_names_match_operation_intent_before_the_first_release() {
     })
     .unwrap();
     for line in include_str!("../fixtures/name-changes.tsv").lines() {
-        let (old, new) = line.split_once('\t').unwrap();
-        assert!(r.op(new).is_some(), "the operation must describe its intent as {new}");
-        assert!(r.op(old).is_none(), "the misleading pre-release name {old} must disappear");
+        let (key, name) = line.split_once('\t').unwrap();
+        assert_eq!(r.by_key(key).unwrap().name, name, "the operation must describe its intent as {name}");
     }
+    let covered: BTreeSet<_> =
+        include_str!("../fixtures/name-changes.tsv").lines().map(|line| line.split_once('\t').unwrap().0).collect();
+    for patch in overlay.patch.iter().filter(|patch| patch.name.is_some()) {
+        let op = r.by_key(&patch.key).unwrap();
+        assert!(covered.contains(patch.key.as_str()), "every name override has an identity fixture: {}", patch.key);
+        assert_ne!(patch.name.as_deref().unwrap(), naming::derive(op), "redundant override: {}", patch.key);
+    }
+}
+
+#[test]
+fn fresh_names_use_resource_families_without_collision_suffixes() {
+    let (spec, overlay, previous) = inputs();
+    let (r, report) =
+        build::build(build::Input { spec: &spec, source: previous.source, previous: None, overlay: &overlay }).unwrap();
+    assert!(report.name_collisions.is_empty(), "real collisions need meaningful overlay names");
+    for line in include_str!("../fixtures/resource-names.tsv").lines() {
+        let (key, name) = line.split_once('\t').unwrap();
+        assert_eq!(r.by_key(key).unwrap().name, name, "fresh resource name for {key}");
+    }
+    for op in &previous.ops {
+        assert_eq!(r.by_key(&op.key).unwrap().name, op.name, "fresh name for {}", op.key);
+    }
+}
+
+#[test]
+fn unknown_cloud_families_are_reported_and_keep_their_names_on_updates() {
+    let (mut spec, overlay, previous) = inputs();
+    let path = "/cloud/v2/universes/{universe_id}/future-widgets/{widget_id}";
+    spec["paths"][path] = json!({"get":{"security":[{"roblox-api-key":[]}],"responses":{}}});
+    let (r, report) = build::build(build::Input {
+        spec: &spec,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+        overlay: &overlay,
+    })
+    .unwrap();
+    assert_eq!(r.by_key(&format!("GET {path}")).unwrap().name, "future-widgets.get");
+    assert!(report.unaliased_cloud_collections.contains("future-widgets"));
+    let (again, _) =
+        build::build(build::Input { spec: &spec, source: previous.source, previous: Some(&r), overlay: &overlay })
+            .unwrap();
+    assert_eq!(again, r);
+}
+
+#[test]
+fn search_ranks_real_agent_queries() {
+    let (_, _, r) = inputs();
+    for (query, expected, first) in [
+        ("place version", "universes.create-place-version", false),
+        ("publish place", "universes.create-place-version", false),
+        ("data store entry", "data-stores.get-entry", false),
+        ("luau logs", "luau.list-task-logs", true),
+        ("universe", "universes.get", true),
+        ("upload asset", "assets.create-asset", true),
+    ] {
+        let hits = r.find(query, 3);
+        assert!(hits.iter().any(|hit| hit.name == expected), "{query}: {hits:?}");
+        if first {
+            assert_eq!(hits[0].name, expected, "{query}: {hits:?}");
+        }
+        if query == "place version" {
+            assert!(!hits[0].name.starts_with("luau."), "{hits:?}");
+        }
+    }
+    let hits = r.find("ban user", 3);
+    assert!(hits.iter().any(|hit| hit.name.starts_with("user-restrictions.")), "{hits:?}");
+    assert!(
+        matches!(r.resolve(&OpRef::Name("data-stores.get-entr".into())), Err(ResolveError::Unknown { suggestions }) if suggestions.contains(&"data-stores.get-entry".into()))
+    );
 }
 
 #[test]
