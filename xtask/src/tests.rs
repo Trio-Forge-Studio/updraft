@@ -756,3 +756,39 @@ fn commits_lookup_authenticates_with_the_supplied_github_token() {
         "the commits API uses the supplied read-only token"
     );
 }
+
+#[test]
+fn spec_pull_request_requires_both_uploaded_artifacts() {
+    let workflow = include_str!("../../.github/workflows/spec.yml").replace("\r\n", "\n");
+    let (verify, pull_request) = workflow.split_once("  pull-request:\n").unwrap();
+    for runner in ["ubuntu", "windows"] {
+        let output = format!(
+            "{runner}-artifact: ${{{{ matrix.os == '{runner}-latest' && steps.artifact.outputs.artifact-id || '' }}}}"
+        );
+        assert!(verify.contains(&output), "{runner} exposes only a successful upload's artifact ID");
+        let required = format!("needs.verify.outputs.{runner}-artifact != ''");
+        let condition = pull_request.lines().find(|line| line.trim_start().starts_with("if:")).unwrap();
+        assert!(condition.contains(&required), "the PR job cannot run without the {runner} artifact");
+        assert!(condition.contains("!cancelled()"), "cancellation never opens a PR");
+    }
+    assert!(
+        verify.contains("id: artifact\n        uses: actions/upload-artifact@"),
+        "the output belongs to the upload step"
+    );
+    assert!(verify.contains("continue-on-error: true"), "verification failures still reach the artifact upload");
+}
+
+#[test]
+fn spec_action_pins_have_readable_upstream_refs() {
+    let workflow = include_str!("../../.github/workflows/spec.yml").replace("\r\n", "\n");
+    for line in workflow.lines().filter(|line| line.contains("uses:")) {
+        let (action, tag) = line.split_once(" # ").expect("each action pin has a readable upstream ref");
+        let (_, sha) = action.split_once('@').unwrap();
+        assert!(sha.len() == 40 && sha.bytes().all(|byte| byte.is_ascii_hexdigit()), "actions stay SHA-pinned");
+        if action.contains("dtolnay/rust-toolchain@") {
+            assert_eq!(tag, "master", "rust-toolchain has no semver release for this pin");
+        } else {
+            assert!(tag.starts_with('v') && tag.split('.').count() == 3, "released actions name their full version");
+        }
+    }
+}
