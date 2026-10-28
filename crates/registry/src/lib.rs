@@ -47,7 +47,7 @@ impl Registry {
                 .map(|op| Resolved { op, preset: Vec::new() })
                 .ok_or_else(|| ResolveError::Unknown { suggestions: self.suggest(name) }),
             OpRef::Url { method, path, query } => {
-                let mut best: Vec<(&Op, Captures, usize)> = Vec::new();
+                let mut best: Vec<(&Op, Captures, (usize, usize))> = Vec::new();
                 for op in self.ops.iter().filter(|op| op.method == *method) {
                     let template = Template::parse(&op.path);
                     if let Some(captures) = template.captures(path) {

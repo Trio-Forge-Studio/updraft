@@ -58,8 +58,17 @@ impl Template {
         words
     }
 
-    pub fn specificity(&self) -> usize {
-        self.segments.iter().filter(|segment| matches!(segment, Segment::Literal(_))).count()
+    pub fn specificity(&self) -> (usize, usize) {
+        let literals = self.segments.iter().filter(|segment| matches!(segment, Segment::Literal(_))).count();
+        let constraints = self
+            .segments
+            .iter()
+            .map(|segment| match segment {
+                Segment::Param { prefix, suffix, .. } => prefix.len() + suffix.len(),
+                _ => 0,
+            })
+            .sum();
+        (literals, constraints)
     }
 
     pub fn captures(&self, path: &str) -> Option<Captures> {

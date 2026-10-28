@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::BTreeSet;
 use updraft_registry::*;
 
 fn inputs() -> (Value, overlay::Overlay, Registry) {
@@ -19,9 +20,48 @@ fn rebuild_is_a_noop_and_covers_every_api_key_operation() {
         overlay: &overlay,
     })
     .unwrap();
-    assert_eq!(report.api_key_operations, 299, "all API-key operations enter the registry");
-    assert_eq!(actual.ops.len(), 301, "the overlay adds two operations");
+    let expected: BTreeSet<_> = spec["paths"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .flat_map(|(path, item)| {
+            ["get", "post", "put", "patch", "delete"].into_iter().filter_map(move |method| {
+                let operation = item.get(method)?;
+                operation["security"]
+                    .as_array()?
+                    .iter()
+                    .any(|security| security.get("roblox-api-key").is_some())
+                    .then(|| format!("{} {path}", method.to_ascii_uppercase()))
+            })
+        })
+        .collect();
+    let added: BTreeSet<_> = overlay.add.iter().map(|op| op.key.as_str()).collect();
+    let included: BTreeSet<_> =
+        actual.ops.iter().filter(|op| !added.contains(op.key.as_str())).map(|op| op.key.clone()).collect();
+    assert_eq!(included, expected, "every API-key operation in the current spec enters the registry");
+    assert_eq!(report.api_key_operations, expected.len());
+    assert_eq!(actual.ops.len(), expected.len() + overlay.add.len());
     assert_eq!(actual, previous, "rebuilding preserves every field and name");
+}
+
+#[test]
+fn added_operations_are_discoverable_without_renaming_existing_commands() {
+    let (mut spec, overlay, previous) = inputs();
+    let key = "GET /assets/v99/future-items/{itemId}";
+    spec["paths"]["/assets/v99/future-items/{itemId}"] = json!({"get":{"security":[{"roblox-api-key":[]}],"parameters":[{"name":"itemId","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"content":{"application/json":{"schema":{"type":"object"}}}}}}});
+    let (actual, _) = build::build(build::Input {
+        spec: &spec,
+        overlay: &overlay,
+        source: previous.source.clone(),
+        previous: Some(&previous),
+    })
+    .unwrap();
+    let added = actual.by_key(key).expect("a new API-key operation enters the registry");
+    assert!(actual.find("future items", 10).iter().any(|hit| hit.name == added.name));
+    for old in &previous.ops {
+        assert_eq!(actual.by_key(&old.key).unwrap().name, old.name, "an unrelated addition preserves {}", old.name);
+    }
+    assert_eq!(diff::diff(&previous, &actual).added.len(), 1);
 }
 
 #[test]
@@ -180,4 +220,30 @@ fn diff_reports_command_identity_and_server_changes() {
             && op.fields.contains(&"operationId")),
         "spec updates report changes to routing and command identity"
     );
+}
+#[test]
+fn every_concrete_url_resolves_except_the_documented_localization_pair() {
+    let (_, _, r) = inputs();
+    let mut resolved = 0;
+    let mut ambiguous = 0;
+    for op in &r.ops {
+        let path = updraft_registry::path::Template::parse(&op.path).render(|_| Some("42".into())).unwrap();
+        match r.resolve(&OpRef::Url { method: op.method, path, query: vec![] }) {
+            Ok(found) => {
+                assert_eq!(found.op.key, op.key, "the concrete URL selects {}", op.name);
+                resolved += 1;
+            }
+            Err(ResolveError::Ambiguous { names }) => {
+                assert!(
+                    op.path.starts_with("/legacy-localization-tables/v1/localization-table/tables/"),
+                    "unexpected ambiguity for {}: {names:?}",
+                    op.name
+                );
+                ambiguous += 1;
+            }
+            Err(error) => panic!("{} must resolve: {error:?}", op.name),
+        }
+    }
+    assert_eq!(ambiguous, 2);
+    assert_eq!(resolved, r.ops.len() - 2);
 }
