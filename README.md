@@ -141,7 +141,7 @@ updraft creates once, polls to COMPLETE, FAILED, or CANCELLED, then reads up to 
 
 An unsafe request answered with 429, or one that never left the process, is sent once and exits 7. The caller decides whether to repeat it. Read and idempotent operations retry 429, 5xx, and transport failures up to three attempts. Their default delays are 1 and 4 seconds. `Retry-After` in seconds takes precedence up to 300 seconds. A larger value stops retries and appears in `error.retryAfter`. Place publishing uses its overlay policy.
 
-Once an unsafe request gets a 2xx, every later failure maps to 6 for remote failure, 8 with GET-only recovery when the resource is known, or 5 with a Creations check when it is not. Repeating the original write is unsafe. GET-only resumes retain codes 3, 4, and 7.
+Once an unsafe request gets a 2xx, every later failure maps to 6 for remote failure, 8 with GET-only recovery when the resource is known, or 5 with a Creations check when it is not. Repeating the original write is unsafe. GET-only resumes retain codes 3, 4, and 7. A classified failure keeps its exit code if stdout cannot be written.
 
 The global options are `--profile`, `--deadline <seconds>`, `--poll-interval <seconds>`, `--retry-delay <seconds>`, and `--verbose`. The default poll interval is 2 seconds. `--retry-delay` changes delays, without making an unsafe operation retryable.
 

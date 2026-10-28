@@ -660,16 +660,29 @@ fn terminal_luau_without_a_log_path_keeps_its_terminal_result() {
 
 #[test]
 fn accepted_write_with_a_closed_stdout_keeps_an_unsafe_outcome_code() {
-    let server = Server::new(vec![Response::json(json!({}))]);
-    let mut child = command(&server.origin)
-        .args(["call", "assets.archive-asset", "assetId=42"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .unwrap();
-    drop(child.stdout.take());
-    let out = child.wait_with_output().unwrap();
-    assert_eq!(code(&out), 5, "failure to deliver stdout cannot authorize another write");
+    fn run(mut command: std::process::Command) -> std::process::Output {
+        let (reader, writer) = std::io::pipe().unwrap();
+        drop(reader);
+        command.stdout(writer).stderr(std::process::Stdio::piped()).output().unwrap()
+    }
+    for (reply, args, expected, requests) in [
+        (Response::json(json!({})), vec!["call", "assets.archive-asset", "assetId=42"], 5, 1),
+        (Response::Body(503, "uncertain".into()), vec!["call", "assets.archive-asset", "assetId=42"], 5, 1),
+        (Response::json(json!({})), vec!["--deadline", "0", "asset", "upload", "--resume", "x"], 8, 0),
+    ] {
+        let server = Server::new(vec![reply]);
+        let mut cmd = command(&server.origin);
+        cmd.args(args);
+        let out = run(cmd);
+        assert_eq!(code(&out), expected, "stdout failure must not erase an accepted, unknown, or pending outcome");
+        assert_eq!(server.requests().len(), requests);
+    }
+    let (_dir, script) = fixture();
+    let server = Server::new(vec![Response::json(json!({"state":"FAILED"}))]);
+    let mut cmd = command(&server.origin);
+    cmd.args(["luau", "run", script.to_str().unwrap(), "--universe", "1", "--place", "2"]);
+    let out = run(cmd);
+    assert_eq!(code(&out), 6, "a known remote failure remains authoritative when stdout closes");
     assert_eq!(server.requests().len(), 1);
 }
 

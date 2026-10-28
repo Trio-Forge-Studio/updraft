@@ -43,6 +43,9 @@ fn main() -> ExitCode {
         Err(f) => (f.code, f.document()),
     };
     if output.document(&document, code != 0).is_err() {
+        if code != 0 {
+            return ExitCode::from(code);
+        }
         let failure =
             acceptance.borrow().finish::<Value>(Err(Failure::unavailable("cannot write stdout"))).unwrap_err();
         return ExitCode::from(failure.code);
