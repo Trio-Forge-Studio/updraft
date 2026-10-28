@@ -56,7 +56,7 @@ $ updraft auth check
 {"keySource":"profile assets","name":"fd-assets","enabled":true,"expired":false,"scopes":["asset:read","asset:write"]}
 exit 0
 
-$ updraft auth check --for cloud.create-universe-place-luau-execution-session-task
+$ updraft auth check --for luau.create-task
 {"error":{"kind":"auth","status":null,"message":"the key from profile assets lacks universe.place.luau-execution-session:write","requiredScopes":[{"name":"universe.place.luau-execution-session:write"}],"keySource":"profile assets","profiles":["assets","publish","luau"]}}
 exit 3
 ```
@@ -65,7 +65,7 @@ Find and describe any operation.
 
 ```console
 $ updraft find luau logs
-[{"name":"cloud.list-universe-place-version-luau-execution-session-task-logs","method":"GET","path":"/cloud/v2/universes/{universe_id}/places/{place_id}/versions/{version_id}/luau-execution-sessions/{luau_execution_session_id}/tasks/{task_id}/logs","summary":"List Luau Execution Session Task Logs","score":30}]
+[{"name":"luau.list-task-logs","method":"GET","path":"/cloud/v2/universes/{universe_id}/places/{place_id}/versions/{version_id}/luau-execution-sessions/{luau_execution_session_id}/tasks/{task_id}/logs","summary":"List Luau Execution Session Task Logs"}]
 exit 0
 
 $ updraft describe universes.create-place-version
@@ -83,7 +83,7 @@ exit 0
 A paged list follows every page with `--all` and prints one page-shaped document. A long-running operation waits by default. `--no-wait` prints the first reply.
 
 ```console
-$ updraft call cloud.list-universe-data-store-entries universe_id=13058 data_store_id=Profiles --all --max-items 500
+$ updraft call data-stores.list-entries universe_id=13058 data_store_id=Profiles --all --max-items 500
 {"dataStoreEntries":[...500 items...],"nextPageToken":"abc"}
 exit 0
 ```
@@ -178,7 +178,13 @@ Each behavior the spec implies becomes a field, and each field has one reader. `
 
 **Build time, checked in.** `cargo xtask spec build` turns `spec/openapi.json` plus `spec/overlay.toml` plus the previous `spec/registry.json` into a new `spec/registry.json`. The binary embeds it with `include_str!`. The registry is checked in for three reasons. Names are history, and history can't be derived from the current spec. A PR that updates the spec shows a reviewable registry diff instead of a 3.9 MB JSON diff. The shipped binary contains no OpenAPI code. `cargo xtask spec check` runs in CI and fails when the registry is not what the build would write, which closes the hand-synced-list red flag. There is no runtime spec loading. A pinned rokit version always exposes the same surface, which matters more for scripts than freshness. The weekly spec workflow plus a tag makes freshness cheap.
 
-**Names.** Every operation gets `<api>.<action>` derived from its method and path alone. `<api>` is the first path segment without `legacy-` and without `-api`, `-service`, `-public-api` and `-http-service`. `<action>` is a verb (`get`, `list`, `create`, `update`, `set`, `delete`, or the custom `:verb`) followed by the path's literal nouns, singular before an id. `GET /assets/v1/assets/{assetId}` becomes `assets.get-asset`. Operations with and without an `operationId` follow one rule, so a name reads back to its URL. The `operationId` stays searchable and appears in `describe`. Collisions resolve by method, then version (`-v2`), then the last path parameter (`-by-table-id`), then a counter. **A name, once assigned, stays with its key** for as long as the key exists, even if the rule would now derive something else. A key that disappears but whose `operationId` reappears at another path keeps its name too. Measured on this spec, the rule leaves only 3 colliding derived names. This is principle-make-operations-idempotent applied to naming. A rebuild with no spec change is a no-op (verified, `kept 299`, empty diff).
+**Names.** Every operation gets `<namespace>.<action>` from its method and path. For `/cloud/v2/`, the namespace is the first resource collection after the `universes/{id}` and `places/{id}` scopes, or the parent resource when addressed directly. A small alias table maps instances to `places`, Luau execution collections to `luau`, creator-store products to `creator-store`, and subscriptions below subscription products to `subscriptions`. New collections use their own namespace and appear in the build report without blocking updates. The action starts with the HTTP-derived verb or custom `:verb`, followed by nouns below the family. Required parameters imply parent scopes. Scoped data-store entries keep `scope`, version-specific Luau creation keeps `version`, and place-specific user restrictions keep `place` to distinguish otherwise identical actions. Thus `/cloud/v2/universes/{id}/data-stores/{store}/entries/{entry}` becomes `data-stores.get-entry`, and a universe itself becomes `universes.get`. The overlapping v1 data-store APIs use `data-stores-v1` and `ordered-data-stores-v1`. The v1 `universes` and `groups` APIs share the v2 namespace when their actions differ. Other APIs retain their API namespace, stripped of `legacy-` and service suffixes. Redundant namespace nouns and parameter scopes are omitted from long actions. `assets.get-asset` and `universes.create-place-version` remain recognizable short names.
+
+The `operationId` stays searchable and appears in `describe`. Guarded overlay overrides correct misleading verbs, shorten irregular paths, and distinguish real collisions. Final names use meaningful resource distinctions rather than method, version, parameter, or numeric collision suffixes. **A name, once assigned, stays with its key** across spec updates. A removed key whose `operationId` reappears at another path keeps its name too. Overrides take priority over history. Before the first release, the resource-name migration rebuilds once to a fresh output file with the pinned source commit, then replaces the registry. Ordinary builds keep reading the previous registry, so this reset does not weaken future name stability. A rebuild with no spec or overlay change is a no-op.
+
+The v1 `followings` and `develop` APIs also have v2 operations. Their v1 commands use `followings-v1` and `develop-v1`, so an agent can distinguish the API generations without collision suffixes.
+
+**Search.** `find` requires every query token to match the name, path, scopes, operation ID, tags, or documentation. File-bearing request bodies also match `upload`. Exact token matches rank above substrings, and name matches rank above other fields. Fewer unmatched name tokens and shorter names break ties before alphabetical order. Singular and plural resource words match as tokens. Unknown-operation suggestions still compare names by edit distance.
 
 **The overlay is the fix surface.** `spec/overlay.toml` holds 9 patches and 2 additions. Publish gets its binary body, JSON response and retry policy. Delivery gets its `location` response. `listAssetVersions` gets its real page shape. Both Luau create operations get a `State` completion. Three query POSTs become `read`. A patch whose key stops matching fails the build. Each patch also states what it expects upstream to still say, such as `expect.body = "absent"` for publish, and the build fails when upstream changes that field, so a stale correction can't silently override a real fix. Every patch carries a note that `describe` prints. Because fixes are data, `updraft call universes.create-place-version --body @file` publishes correctly and retries like `place publish`. The flows and generic calls can't drift.
 
@@ -234,7 +240,7 @@ Rejected from A: choosing a profile by matching declared scopes. It depends on w
 
 ## Tradeoffs accepted
 
-- We accept long names (median 44, max 119 characters) in exchange for one naming rule that reads back to the URL and never depends on Roblox's id style. Agents copy names from `find`, and humans use the flows.
+- We accept resource-family aliases and guarded overrides in exchange for short operation names that agents can infer. Names omit scopes already required as parameters, and spec updates preserve assigned names.
 - We accept a checked-in 970 KB generated file in exchange for stable names, reviewable surface diffs, and a binary with no OpenAPI parser.
 - We accept that a new endpoint needs an updraft release in exchange for every pinned version exposing the same commands on every machine.
 - We accept a curated `safety = "read"` list for query POSTs in exchange for retries that never repeat a write. An unlisted read POST just doesn't retry.
