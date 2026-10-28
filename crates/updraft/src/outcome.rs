@@ -71,7 +71,9 @@ pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
             if (200..300).contains(&status) {
                 return Verdict::Success(body);
             }
-            let message = format!("HTTP {status} {}", String::from_utf8_lossy(&body));
+            let message = format!("HTTP {status}");
+            let detail =
+                serde_json::from_slice::<Value>(&body).unwrap_or_else(|_| json!(String::from_utf8_lossy(&body)));
             let failure = match status {
                 401 | 403 => Failure::new(3, "auth", message),
                 429 => Failure::unavailable(message),
@@ -79,7 +81,8 @@ pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
                 _ if unsafe_write => Failure::unknown(message),
                 _ => Failure::unavailable(message),
             }
-            .with("status", json!(status));
+            .with("status", json!(status))
+            .with("detail", detail);
             let retryable = op.retry.as_ref().map_or(!unsafe_write && (status == 429 || status >= 500), |policy| {
                 policy.statuses.iter().any(|class| class.matches(status))
             });

@@ -1,7 +1,5 @@
 use serde_json::Value;
 use std::io::Write;
-const URL_COMPONENT: &percent_encoding::AsciiSet =
-    &percent_encoding::NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'~');
 
 pub struct Output {
     secrets: Vec<String>,
@@ -17,23 +15,6 @@ impl Output {
             return;
         }
         self.secrets.push(key.into());
-        let escaped = serde_json::to_string(key).expect("a string serializes");
-        self.secrets.push(escaped[1..escaped.len() - 1].into());
-        let sets = [percent_encoding::NON_ALPHANUMERIC, URL_COMPONENT];
-        for set in sets {
-            let encoded = percent_encoding::utf8_percent_encode(key, set).to_string();
-            let mut lower = encoded.clone().into_bytes();
-            for i in 0..lower.len().saturating_sub(2) {
-                if lower[i] == b'%' {
-                    lower[i + 1].make_ascii_lowercase();
-                    lower[i + 2].make_ascii_lowercase();
-                }
-            }
-            self.secrets.push(encoded);
-            self.secrets.push(String::from_utf8(lower).expect("percent encoding is ASCII"));
-        }
-        let form = url::form_urlencoded::Serializer::new(String::new()).append_pair("", key).finish();
-        self.secrets.push(form[1..].into());
         self.secrets.sort_by_key(|s| std::cmp::Reverse(s.len()));
     }
     pub fn document(&self, value: &Value, error: bool) -> std::io::Result<()> {
@@ -61,7 +42,20 @@ impl Output {
         }
     }
     pub fn redact(&self, text: &str) -> String {
-        self.secrets.iter().fold(text.to_owned(), |text, secret| text.replace(secret, "<redacted>"))
+        let mut result = String::new();
+        let mut remaining = text;
+        while !remaining.is_empty() {
+            let matched = self.secrets.iter().find_map(|key| encoded_secret_len(remaining, key));
+            if let Some(length) = matched {
+                result.push_str("<redacted>");
+                remaining = &remaining[length..];
+            } else {
+                let c = remaining.chars().next().expect("remaining text is nonempty");
+                result.push(c);
+                remaining = &remaining[c.len_utf8()..];
+            }
+        }
+        result
     }
     fn redact_error(&self, text: &str) -> String {
         let mut text = self.redact(text);
@@ -74,8 +68,9 @@ impl Output {
                     .map_or(text.len(), |i| at + i);
                 let token = &text[at..end];
                 let safe = token.split(['?', '#']).next().unwrap_or(token);
-                let safe = if let Some((_, host)) = safe[scheme.len()..].split_once('@') {
-                    format!("{scheme}{host}")
+                let authority_end = safe[scheme.len()..].find('/').map_or(safe.len(), |i| scheme.len() + i);
+                let safe = if let Some((_, host)) = safe[scheme.len()..authority_end].rsplit_once('@') {
+                    format!("{scheme}{host}{}", &safe[authority_end..])
                 } else {
                     safe.into()
                 };
@@ -85,6 +80,31 @@ impl Output {
         }
         text
     }
+}
+fn encoded_secret_len(text: &str, key: &str) -> Option<usize> {
+    let mut at = 0;
+    for c in key.chars() {
+        let rest = &text[at..];
+        let unicode: String = c.encode_utf16(&mut [0; 2]).iter().map(|unit| format!("\\u{unit:04x}")).collect();
+        let json = serde_json::to_string(&c.to_string()).expect("a character serializes");
+        let json = &json[1..json.len() - 1];
+        let percent =
+            percent_encoding::utf8_percent_encode(&c.to_string(), percent_encoding::NON_ALPHANUMERIC).to_string();
+        let encoded = [unicode.as_str(), json, if c == '/' { "\\/" } else { "" }, percent.as_str()]
+            .into_iter()
+            .filter(|form| !form.is_empty() && (form.starts_with('\\') || form.starts_with('%')))
+            .filter(|form| rest.get(..form.len()).is_some_and(|prefix| prefix.eq_ignore_ascii_case(form)))
+            .map(str::len)
+            .max();
+        at += if let Some(length) = encoded {
+            length
+        } else if rest.starts_with(c) {
+            c.len_utf8()
+        } else {
+            return None;
+        };
+    }
+    Some(at)
 }
 #[cfg(test)]
 mod tests {

@@ -74,24 +74,50 @@ fn absent_scope_metadata_is_null_on_401_and_403() {
 }
 #[test]
 fn echoed_key_and_encoded_forms_never_reach_either_stream() {
-    for status in [200, 403, 503] {
-        let server = MockServer::start();
-        let encoded = percent_encoding::utf8_percent_encode(KEY, percent_encoding::NON_ALPHANUMERIC).to_string();
-        let body = json!({"key":KEY,"encoded":encoded,"url":"https://cdn.test/file?signature=private"});
-        server.mock(|w, t| {
-            w.method(GET).path("/assets/v1/assets/42");
-            t.status(status).json_body(body);
-        });
-        let out = command(&server.base_url()).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
-        let combined = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
-        assert!(!combined.contains(KEY), "exact key is redacted for HTTP {status}");
-        assert!(!combined.contains(&encoded), "encoded key is redacted for HTTP {status}");
-        if status != 200 {
-            assert!(!combined.contains("signature=private"), "signed queries are stripped from errors");
+    let encoded = percent_encoding::utf8_percent_encode(KEY, percent_encoding::NON_ALPHANUMERIC).to_string();
+    let mixed = encoded.replace("%2B", "%2b").replace("%2F", "%2f");
+    let unicode: String = KEY.chars().map(|c| format!("\\u{:04X}", c as u32)).collect();
+    let slash = KEY.replace('/', "\\/");
+    for status in [200, 400, 403, 503] {
+        for body in [
+            format!(
+                r#"{{"plain":"{KEY}","slash":"{slash}","unicode":"{unicode}","percent":"{mixed}","url":"https://cdn.test/file?signature=private"}}"#
+            ),
+            format!("not JSON {slash} {unicode} {mixed} {KEY} https://cdn.test/file?signature=private\n"),
+        ] {
+            let server = MockServer::start();
+            server.mock(|w, t| {
+                w.method(GET).path("/assets/v1/assets/42");
+                t.status(status).body(&body);
+            });
+            let out = command(&server.base_url()).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+            let combined = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+            for form in [KEY, &encoded, &mixed, &unicode, &slash] {
+                assert!(!combined.contains(form), "secret form must be redacted for HTTP {status}");
+            }
+            let d = document(&out);
+            if status >= 400 {
+                assert_eq!(d["error"]["message"], format!("HTTP {status}"));
+                assert!(!combined.contains("signature=private"), "signed queries are stripped from errors");
+                if body.starts_with('{') {
+                    assert_eq!(d["error"]["detail"]["slash"], "<redacted>");
+                    assert_eq!(d["error"]["detail"]["unicode"], "<redacted>");
+                }
+            }
         }
-        document(&out);
     }
 }
+
+#[test]
+fn error_urls_keep_the_host_when_the_path_contains_an_at_sign() {
+    let server = MockServer::start();
+    server.mock(|_, t| {
+        t.status(400).json_body(json!({"url":"https://cdn.test/folder/@asset/file?signature=private"}));
+    });
+    let out = command(&server.base_url()).args(["call", "assets.get-asset", "assetId=42"]).output().unwrap();
+    assert_eq!(document(&out)["error"]["detail"]["url"], "https://cdn.test/folder/@asset/file");
+}
+
 #[test]
 fn named_calls_and_url_calls_bind_folded_parameters() {
     let server = MockServer::start();
