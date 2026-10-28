@@ -16,16 +16,6 @@ pub struct Call<'r> {
     body: Option<BodyInput>,
     values: Vec<(String, String)>,
     until: Option<std::time::Instant>,
-    download: Option<(url::Url, std::fs::File)>,
-}
-pub enum Preset {
-    Parameters(Vec<(String, String)>),
-    Download { url: url::Url, parameters: Vec<(String, String)>, destination: std::fs::File },
-}
-impl From<Vec<(String, String)>> for Preset {
-    fn from(parameters: Vec<(String, String)>) -> Self {
-        Self::Parameters(parameters)
-    }
 }
 #[derive(Clone)]
 pub enum BodyInput {
@@ -73,19 +63,10 @@ impl Source {
 impl<'r> Call<'r> {
     pub fn new(
         op: &'r Op,
-        preset: impl Into<Preset>,
+        preset: Vec<(String, String)>,
         pairs: Vec<(String, String)>,
         body: Option<BodyInput>,
     ) -> Result<Self, Failure> {
-        let (preset, download) = match preset.into() {
-            Preset::Parameters(parameters) => (parameters, None),
-            Preset::Download { url, parameters, destination } => {
-                if op.method != updraft_registry::Method::Get || body.is_some() {
-                    return Err(Failure::usage("a download must be a body-free read"));
-                }
-                (parameters, Some((url, destination)))
-            }
-        };
         let mut values: BTreeMap<String, Vec<String>> = BTreeMap::new();
         let explicit: std::collections::BTreeSet<_> = pairs.iter().map(|(k, _)| fold(k)).collect();
         for (name, value) in preset.into_iter().filter(|(name, _)| !explicit.contains(&fold(name))).chain(pairs) {
@@ -146,7 +127,6 @@ impl<'r> Call<'r> {
             headers,
             body,
             until: None,
-            download,
             values: values.into_iter().flat_map(|(k, vs)| vs.into_iter().map(move |v| (k.clone(), v))).collect(),
         })
     }
@@ -176,21 +156,18 @@ impl<'r> Call<'r> {
     pub fn op(&self) -> &'r Op {
         self.op
     }
-    pub fn download_url(&self) -> Option<&url::Url> {
-        self.download.as_ref().map(|(url, _)| url)
-    }
-    pub fn destination(&self) -> Option<&std::fs::File> {
-        self.download.as_ref().map(|(_, file)| file)
-    }
-    pub fn parameters(&self) -> Vec<(String, String)> {
-        self.values.clone()
+    pub fn has_binary_body(&self) -> bool {
+        match &self.body {
+            Some(BodyInput::Binary { .. }) => true,
+            Some(BodyInput::Multipart { parts }) => {
+                parts.iter().any(|part| matches!(part.content, PartContent::File { .. }))
+            }
+            _ => false,
+        }
     }
     pub fn request(&self, origin: &str) -> Result<ureq::http::Request<Vec<u8>>, Failure> {
-        let mut url = self
-            .download
-            .as_ref()
-            .map_or_else(|| format!("{}{}", origin.trim_end_matches('/'), self.path), |(url, _)| url.to_string());
-        if self.download.is_none() && !self.query.is_empty() {
+        let mut url = format!("{}{}", origin.trim_end_matches('/'), self.path);
+        if !self.query.is_empty() {
             url.push('?');
             url.push_str(&url::form_urlencoded::Serializer::new(String::new()).extend_pairs(&self.query).finish());
         }

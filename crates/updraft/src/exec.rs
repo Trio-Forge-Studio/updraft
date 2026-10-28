@@ -1,6 +1,6 @@
 use crate::auth::Secret;
 use crate::call::Call;
-use crate::outcome::{Attempt, DEFAULT_ATTEMPTS, Failure, History, Verdict, judge};
+use crate::outcome::{Attempt, DEFAULT_ATTEMPTS, Failure, History, Verdict, judge, judge_read};
 use crate::output::Output;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -11,7 +11,7 @@ use ureq::RequestExt;
 pub struct Executor<'a> {
     pub registry: &'static Registry,
     agent: ureq::Agent,
-    download_agent: ureq::Agent,
+    downloads: Downloads,
     origin: Option<String>,
     key: Option<&'a Secret>,
     pub timing: Timing,
@@ -24,15 +24,12 @@ pub struct Timing {
     pub retry_delay: Option<Duration>,
 }
 pub enum Reply {
-    Saved(u64),
-    Redirect(String),
     Json(Value),
     Empty,
 }
 impl Reply {
     pub fn json(self) -> Result<Value, Failure> {
         match self {
-            Self::Saved(_) | Self::Redirect(_) => Err(Failure::unavailable("unexpected download response")),
             Self::Json(v) => Ok(v),
             Self::Empty => Ok(Value::Null),
         }
@@ -68,17 +65,24 @@ impl<'a> Executor<'a> {
             .max_redirects_will_error(false)
             .http_status_as_error(false)
             .timeout_connect(Some(Duration::from_secs(30)))
-            .timeout_global(Some(Duration::from_secs(120)))
+            .timeout_global(Some(Duration::from_secs(600)))
             .build()
             .into();
-        let download_agent = ureq::Agent::config_builder()
-            .max_redirects(0)
-            .max_redirects_will_error(false)
-            .http_status_as_error(false)
-            .timeout_global(Some(Duration::from_secs(120)))
-            .build()
-            .into();
-        Ok(Self { registry, agent, download_agent, origin, key, timing, out })
+        let downloads = Downloads {
+            agent: ureq::Agent::config_builder()
+                .max_redirects(0)
+                .max_redirects_will_error(false)
+                .http_status_as_error(false)
+                .timeout_connect(Some(Duration::from_secs(30)))
+                .timeout_recv_response(Some(Duration::from_secs(30)))
+                .timeout_per_read(Some(Duration::from_secs(30)))
+                .timeout_global(None)
+                .build()
+                .into(),
+            allow_loopback: origin.is_some(),
+            retry_delay: timing.retry_delay,
+        };
+        Ok(Self { registry, agent, downloads, origin, key, timing, out })
     }
     pub fn send(&self, call: &Call<'_>) -> Result<Reply, Failure> {
         let op = call.op();
@@ -88,8 +92,7 @@ impl<'a> Executor<'a> {
                 return Err(Failure::unavailable("request deadline passed"));
             }
             let mut request = call.request(self.origin.as_deref().unwrap_or(op.server.origin()))?;
-            let download = call.download_url().is_some();
-            if !download && matches!(op.auth, Auth::ApiKey { .. }) {
+            if matches!(op.auth, Auth::ApiKey { .. }) {
                 let key = self.key.ok_or_else(|| Failure::new(3, "auth", "no API key selected"))?;
                 request.headers_mut().insert(
                     "x-api-key",
@@ -104,11 +107,9 @@ impl<'a> Executor<'a> {
                 request.headers_mut().insert("content-type", ureq::http::HeaderValue::from_static("application/json"));
             }
             self.out.trace(&format!("{} {}", request.method(), op.path));
-            let request_timeout = Duration::from_secs(if op.method == Method::Get { 30 } else { 120 });
+            let request_timeout = request_timeout(call);
             let timeout = call.timeout().map_or(request_timeout, |remaining| remaining.min(request_timeout));
-            let mut saved = None;
-            let client = if download { &self.download_agent } else { &self.agent };
-            let attempt = match request.with_agent(client).configure().timeout_global(Some(timeout)).run() {
+            let attempt = match request.with_agent(&self.agent).configure().timeout_global(Some(timeout)).run() {
                 Ok(mut response) => {
                     let status = response.status().as_u16();
                     self.out.trace(&format!("HTTP {status}"));
@@ -117,53 +118,26 @@ impl<'a> Executor<'a> {
                         .get("retry-after")
                         .and_then(|s| s.to_str().ok())
                         .and_then(|s| s.parse().ok());
-                    if download && (200..300).contains(&status) {
-                        let mut destination = call.destination().expect("download binding has a destination");
-                        use std::io::Seek;
-                        destination
-                            .set_len(0)
-                            .and_then(|()| destination.rewind())
-                            .map_err(|_| Failure::unavailable("cannot reset the temporary download file"))?;
-                        match std::io::copy(&mut response.body_mut().as_reader(), &mut destination) {
-                            Ok(bytes) => {
-                                saved = Some(bytes);
-                                Attempt::Response { status, retry_after, body: vec![] }
-                            }
-                            Err(_) => Attempt::Transport {
-                                sent: true,
-                                message: "download body was lost; the output was not replaced".into(),
-                            },
-                        }
-                    } else if download && matches!(status, 301 | 302 | 303 | 307 | 308) {
-                        let location = response
-                            .headers()
-                            .get("location")
-                            .and_then(|v| v.to_str().ok())
-                            .unwrap_or_default()
-                            .to_owned();
-                        Attempt::Redirect(location)
-                    } else {
-                        match response.body_mut().with_config().limit(64 * 1024 * 1024).read_to_vec() {
-                            Ok(body) => {
-                                if (200..300).contains(&status)
-                                    && matches!(op.response, Payload::Json { .. })
-                                    && status != 204
-                                    && !body.is_empty()
-                                    && serde_json::from_slice::<Value>(&body).is_err()
-                                {
-                                    Attempt::Transport {
-                                        sent: true,
-                                        message: format!("invalid JSON: {}", String::from_utf8_lossy(&body)),
-                                    }
-                                } else {
-                                    Attempt::Response { status, retry_after, body }
+                    match response.body_mut().with_config().limit(64 * 1024 * 1024).read_to_vec() {
+                        Ok(body) => {
+                            if (200..300).contains(&status)
+                                && matches!(op.response, Payload::Json { .. })
+                                && status != 204
+                                && !body.is_empty()
+                                && serde_json::from_slice::<Value>(&body).is_err()
+                            {
+                                Attempt::Transport {
+                                    sent: true,
+                                    message: format!("invalid JSON: {}", String::from_utf8_lossy(&body)),
                                 }
+                            } else {
+                                Attempt::Response { status, retry_after, body }
                             }
-                            Err(error) if !(200..300).contains(&status) => {
-                                Attempt::Response { status, retry_after, body: error.to_string().into_bytes() }
-                            }
-                            Err(error) => Attempt::Transport { sent: true, message: error.to_string() },
                         }
+                        Err(error) if !(200..300).contains(&status) => {
+                            Attempt::Response { status, retry_after, body: error.to_string().into_bytes() }
+                        }
+                        Err(error) => Attempt::Transport { sent: true, message: error.to_string() },
                     }
                 }
                 Err(error) => {
@@ -183,11 +157,8 @@ impl<'a> Executor<'a> {
                 Attempt::PageOverflow { .. } => "page exceeds limit".into(),
             };
             match judge(op, attempt, history) {
-                Verdict::Redirect(location) => return Ok(Reply::Redirect(location)),
+                Verdict::Redirect(_) => unreachable!("API requests do not follow redirects"),
                 Verdict::Success(body) => {
-                    if let Some(bytes) = saved {
-                        return Ok(Reply::Saved(bytes));
-                    }
                     return match &op.response {
                         Payload::Json { .. } if !body.is_empty() => serde_json::from_slice(&body)
                             .map(Reply::Json)
@@ -352,62 +323,195 @@ impl Executor<'_> {
     pub fn note(&self, message: &str) {
         self.out.note(message);
     }
-    pub fn download(
-        &self,
-        from: &Call<'_>,
-        location: &str,
-        to: &std::path::Path,
-        overwrite: bool,
-    ) -> Result<u64, Failure> {
+    pub fn download(&self, location: &str, to: &std::path::Path, overwrite: bool) -> Result<u64, Failure> {
+        self.downloads.save(location, to, overwrite, self.out)
+    }
+}
+fn request_timeout(call: &Call<'_>) -> Duration {
+    Duration::from_secs(if call.has_binary_body() {
+        600
+    } else if call.op().method == Method::Get {
+        30
+    } else {
+        120
+    })
+}
+struct Downloads {
+    agent: ureq::Agent,
+    allow_loopback: bool,
+    retry_delay: Option<Duration>,
+}
+impl Downloads {
+    fn save(&self, location: &str, to: &std::path::Path, overwrite: bool, out: &Output) -> Result<u64, Failure> {
+        use std::io::Seek;
         let mut url = url::Url::parse(location).map_err(|_| Failure::unavailable("delivery location is not a URL"))?;
         let parent = to.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| std::path::Path::new("."));
         if to.exists() && !overwrite {
             return Err(Failure::usage("output already exists; use --overwrite"));
         }
-        let temporary = tempfile::NamedTempFile::new_in(parent)
+        let mut temporary = tempfile::NamedTempFile::new_in(parent)
             .map_err(|_| Failure::usage("cannot create a temporary output file"))?;
         for redirects in 0..=5 {
-            let test_http = self.origin.is_some()
+            let test_http = self.allow_loopback
                 && url.scheme() == "http"
                 && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
             if (url.scheme() != "https" && !test_http) || !url.username().is_empty() || url.password().is_some() {
                 return Err(Failure::unavailable("download requires HTTPS without URL credentials"));
             }
             url.set_fragment(None);
-            let call = Call::new(
-                from.op(),
-                crate::call::Preset::Download {
-                    url: url.clone(),
-                    parameters: from.parameters(),
-                    destination: temporary
-                        .as_file()
-                        .try_clone()
-                        .map_err(|_| Failure::usage("cannot access the temporary download file"))?,
-                },
-                vec![],
-                None,
-            )?;
-            match self.send(&call)? {
-                Reply::Redirect(location) => {
-                    if redirects == 5 {
-                        return Err(Failure::unavailable("download exceeded five redirects"));
+            let mut history = History::default();
+            loop {
+                temporary
+                    .as_file_mut()
+                    .set_len(0)
+                    .and_then(|()| temporary.rewind())
+                    .map_err(|_| Failure::unavailable("cannot reset the temporary download file"))?;
+                let mut saved = 0;
+                let attempt = match self.agent.get(url.as_str()).call() {
+                    Ok(mut response) => {
+                        let status = response.status().as_u16();
+                        let retry_after = response
+                            .headers()
+                            .get("retry-after")
+                            .and_then(|v| v.to_str().ok())
+                            .and_then(|v| v.parse().ok());
+                        if (200..300).contains(&status) {
+                            match std::io::copy(&mut response.body_mut().as_reader(), temporary.as_file_mut()) {
+                                Ok(bytes) => {
+                                    saved = bytes;
+                                    Attempt::Response { status, retry_after, body: vec![] }
+                                }
+                                Err(_) => Attempt::Transport {
+                                    sent: true,
+                                    message: "download body was lost; the output was not replaced".into(),
+                                },
+                            }
+                        } else if matches!(status, 301 | 302 | 303 | 307 | 308) {
+                            Attempt::Redirect(
+                                response
+                                    .headers()
+                                    .get("location")
+                                    .and_then(|v| v.to_str().ok())
+                                    .unwrap_or_default()
+                                    .into(),
+                            )
+                        } else {
+                            let body = response
+                                .body_mut()
+                                .with_config()
+                                .limit(64 * 1024 * 1024)
+                                .read_to_vec()
+                                .unwrap_or_default();
+                            Attempt::Response { status, retry_after, body }
+                        }
                     }
-                    if location.is_empty() {
-                        return Err(Failure::unavailable("download redirect has no location"));
+                    Err(error) => Attempt::Transport { sent: true, message: error.to_string() },
+                };
+                match judge_read(attempt, history) {
+                    Verdict::Success(_) => {
+                        temporary.as_file().sync_all().map_err(|_| Failure::usage("cannot flush the output file"))?;
+                        let result = if overwrite { temporary.persist(to) } else { temporary.persist_noclobber(to) };
+                        result.map_err(|_| Failure::usage("cannot rename the temporary output file"))?;
+                        return Ok(saved);
                     }
-                    url = url
-                        .join(&location)
-                        .map_err(|_| Failure::unavailable("download redirect has an invalid URL"))?;
+                    Verdict::Redirect(location) => {
+                        if redirects == 5 {
+                            return Err(Failure::unavailable("download exceeded five redirects"));
+                        }
+                        if location.is_empty() {
+                            return Err(Failure::unavailable("download redirect has no location"));
+                        }
+                        url = url
+                            .join(&location)
+                            .map_err(|_| Failure::unavailable("download redirect has an invalid URL"))?;
+                        break;
+                    }
+                    Verdict::Retry { after_seconds, history: next } => {
+                        history = next;
+                        let delay = self.retry_delay.unwrap_or(Duration::from_secs(after_seconds.into()));
+                        out.note(&format!(
+                            "download request failed, retrying in {} s (attempt {} of {DEFAULT_ATTEMPTS})",
+                            delay.as_secs_f64(),
+                            history.attempts + 1
+                        ));
+                        std::thread::sleep(delay);
+                    }
+                    Verdict::Fail(failure) => return Err(failure),
                 }
-                Reply::Saved(bytes) => {
-                    temporary.as_file().sync_all().map_err(|_| Failure::usage("cannot flush the output file"))?;
-                    let result = if overwrite { temporary.persist(to) } else { temporary.persist_noclobber(to) };
-                    result.map_err(|_| Failure::usage("cannot rename the temporary output file"))?;
-                    return Ok(bytes);
-                }
-                _ => return Err(Failure::unavailable("download returned an unexpected response")),
             }
         }
         unreachable!("the redirect limit returns within the loop")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn download_needs_no_registry_operation_or_key() {
+        let server = httpmock::MockServer::start();
+        let m = server.mock(|w, t| {
+            w.path("/file").header_missing("x-api-key");
+            t.body("bytes");
+        });
+        let mut output = Output::new(false);
+        let ex = Executor::new(
+            &crate::REGISTRY,
+            Some(server.base_url()),
+            None,
+            Timing { deadline: Duration::ZERO, poll_interval: Duration::ZERO, retry_delay: Some(Duration::ZERO) },
+            &mut output,
+        )
+        .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("asset");
+        assert_eq!(ex.download(&format!("{}/file", server.base_url()), &path, false).unwrap(), 5);
+        assert_eq!(std::fs::read(&path).unwrap(), b"bytes");
+        m.assert_calls(1);
+    }
+    #[test]
+    fn download_reads_have_idle_budgets_and_binary_uploads_have_ten_minutes() {
+        let mut output = Output::new(false);
+        let ex = Executor::new(
+            &crate::REGISTRY,
+            None,
+            None,
+            Timing {
+                deadline: Duration::from_secs(300),
+                poll_interval: Duration::ZERO,
+                retry_delay: Some(Duration::ZERO),
+            },
+            &mut output,
+        )
+        .unwrap();
+        let publish = crate::REGISTRY.op("universes.create-place-version").unwrap();
+        let binary = Call::new(
+            publish,
+            vec![],
+            vec![("universeId".into(), "1".into()), ("placeId".into(), "2".into())],
+            Some(crate::call::BodyInput::Binary { content_type: "application/octet-stream".into(), bytes: vec![1] }),
+        )
+        .unwrap();
+        assert_eq!(request_timeout(&binary), Duration::from_secs(600), "binary calls select the longer request budget");
+        let read = Call::new(
+            crate::REGISTRY.op("assets.get-operation").unwrap(),
+            vec![],
+            vec![("operationId".into(), "x".into())],
+            None,
+        )
+        .unwrap();
+        assert_eq!(request_timeout(&read), Duration::from_secs(30), "polls retain short budgets");
+        assert!(ex.downloads.agent.config().timeouts().global.is_none(), "active downloads have no total duration cap");
+        assert_eq!(
+            ex.downloads.agent.config().timeout_per_read(),
+            Some(Duration::from_secs(30)),
+            "a stalled read still times out"
+        );
+        assert_eq!(
+            ex.agent.config().timeouts().global,
+            Some(Duration::from_secs(600)),
+            "binary transfers can run for ten minutes"
+        );
     }
 }

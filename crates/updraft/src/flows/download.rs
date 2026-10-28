@@ -29,6 +29,6 @@ pub fn run(ex: &Executor<'_>, args: Args) -> Result<Value, Failure> {
     let reply = ex.send(&call)?.json()?;
     let location =
         reply["location"].as_str().ok_or_else(|| Failure::unavailable("delivery returned no download location"))?;
-    let bytes = ex.download(&call, location, &args.out, args.overwrite)?;
+    let bytes = ex.download(location, &args.out, args.overwrite)?;
     Ok(json!({"assetId":args.asset,"version":args.version,"file":args.out,"bytes":bytes}))
 }

@@ -1,5 +1,5 @@
 use serde_json::{Value, json};
-use updraft_registry::{Op, Safety};
+use updraft_registry::{Op, RetryPolicy, Safety};
 
 pub const DEFAULT_ATTEMPTS: u8 = 3;
 
@@ -53,7 +53,13 @@ pub enum Verdict {
 }
 
 pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
-    let unsafe_write = op.safety == Safety::Unsafe;
+    judge_policy(op.safety, op.retry.as_ref(), attempt, history)
+}
+pub fn judge_read(attempt: Attempt, history: History) -> Verdict {
+    judge_policy(Safety::Read, None, attempt, history)
+}
+fn judge_policy(safety: Safety, retry: Option<&RetryPolicy>, attempt: Attempt, history: History) -> Verdict {
+    let unsafe_write = safety == Safety::Unsafe;
     let (failure, retryable, uncertain, retry_after) = match attempt {
         Attempt::PageOverflow { can_resize } => {
             if unsafe_write {
@@ -85,7 +91,7 @@ pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
             }
             .with("status", json!(status))
             .with("detail", detail);
-            let retryable = op.retry.as_ref().map_or(!unsafe_write && (status == 429 || status >= 500), |policy| {
+            let retryable = retry.map_or(!unsafe_write && (status == 429 || status >= 500), |policy| {
                 policy.statuses.iter().any(|class| class.matches(status))
             });
             (failure, retryable, unsafe_write && status >= 500, retry_after)
@@ -98,9 +104,9 @@ pub fn judge(op: &Op, attempt: Attempt, history: History) -> Verdict {
     let uncertain = history.uncertain || uncertain;
     let capped = retry_after.is_some_and(|wait| wait > 300);
     let failure = if capped { failure.with("retryAfter", json!(retry_after)) } else { failure };
-    let attempts = op.retry.as_ref().map_or(DEFAULT_ATTEMPTS, |policy| policy.attempts);
+    let attempts = retry.map_or(DEFAULT_ATTEMPTS, |policy| policy.attempts);
     if retryable && !capped && history.attempts + 1 < attempts {
-        let delay = op.retry.as_ref().map_or(if history.attempts == 0 { 1 } else { 4 }, |policy| policy.delay_seconds);
+        let delay = retry.map_or(if history.attempts == 0 { 1 } else { 4 }, |policy| policy.delay_seconds);
         return Verdict::Retry {
             after_seconds: retry_after.map_or(delay, |wait| wait as u32),
             history: History { attempts: history.attempts + 1, uncertain },
