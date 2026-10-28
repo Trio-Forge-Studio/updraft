@@ -97,6 +97,7 @@ pub fn run(ex: &Executor<'_>, args: Args, profile: Option<&Profile>) -> Result<V
     };
     ex.note(&format!("Operation {id}: waiting"));
     let resume = format!("updraft asset upload --resume {id}");
+    ex.resume(resume.clone());
     let result = ex
         .finish(super::op(ex.registry, super::GET_OPERATION), json!({"path":format!("operations/{id}"),"done":false}))
         .map_err(|f| f.with("resume", json!(resume)).with("operationId", json!(id)))?;

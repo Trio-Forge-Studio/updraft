@@ -5,22 +5,45 @@ use serde_json::{Value, json};
 use std::path::PathBuf;
 #[derive(clap::Args)]
 pub struct Args {
-    pub script: String,
-    #[arg(long,value_parser=super::positive_id)]
-    pub universe: String,
-    #[arg(long,value_parser=super::positive_id)]
-    pub place: String,
+    #[arg(required_unless_present = "resume", conflicts_with = "resume")]
+    pub script: Option<String>,
+    #[arg(long, conflicts_with_all = ["script", "universe", "place", "version", "timeout"])]
+    pub resume: Option<String>,
+    #[arg(long, required_unless_present = "resume", value_parser = super::positive_id)]
+    pub universe: Option<String>,
+    #[arg(long, required_unless_present = "resume", value_parser = super::positive_id)]
+    pub place: Option<String>,
     #[arg(long)]
     pub version: Option<u64>,
     #[arg(long)]
     pub timeout: Option<u64>,
 }
+const READER: &str = "GET /cloud/v2/universes/{universe_id}/places/{place_id}/versions/{version_id}/luau-execution-sessions/{luau_execution_session_id}/tasks/{task_id}";
 pub fn primary<'r>(r: &'r updraft_registry::Registry, args: &Args) -> &'r updraft_registry::Op {
-    super::op(r, if args.version.is_some() { super::LUAU_VERSION } else { super::LUAU })
+    super::op(
+        r,
+        if args.resume.is_some() {
+            READER
+        } else if args.version.is_some() {
+            super::LUAU_VERSION
+        } else {
+            super::LUAU
+        },
+    )
 }
-pub fn run(ex: &Executor<'_>, args: Args) -> Result<Value, Failure> {
+fn first(ex: &Executor<'_>, args: Args) -> Result<(Value, &'static updraft_registry::Op), Failure> {
     let op = primary(ex.registry, &args);
-    let source = if args.script == "-" { Source::Stdin } else { Source::File(PathBuf::from(&args.script)) };
+    if let Some(path) = args.resume {
+        if path.is_empty()
+            || path.chars().any(|c| !(c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_')))
+            || path.split('/').any(str::is_empty)
+        {
+            return Err(Failure::usage("--resume requires a task resource path"));
+        }
+        return Ok((json!({"path":path}), op));
+    }
+    let script = args.script.expect("clap requires a script for creation");
+    let source = if script == "-" { Source::Stdin } else { Source::File(PathBuf::from(script)) };
     let bytes = source.read()?;
     if bytes.len() > 4_000_000 {
         return Err(Failure::usage("Luau script exceeds 4 MB"));
@@ -30,7 +53,10 @@ pub fn run(ex: &Executor<'_>, args: Args) -> Result<Value, Failure> {
     if let Some(timeout) = args.timeout {
         body["timeout"] = json!(format!("{timeout}s"));
     }
-    let mut pairs = vec![("universe_id".into(), args.universe), ("place_id".into(), args.place)];
+    let mut pairs = vec![
+        ("universe_id".into(), args.universe.expect("clap requires universe")),
+        ("place_id".into(), args.place.expect("clap requires place")),
+    ];
     if let Some(version) = args.version {
         pairs.push(("version_id".into(), version.to_string()));
     }
@@ -38,26 +64,31 @@ pub fn run(ex: &Executor<'_>, args: Args) -> Result<Value, Failure> {
         content_type: "application/json".into(),
         bytes: serde_json::to_vec(&body).expect("a JSON value serializes"),
     };
-    let first = ex.send(&Call::new(op, vec![], pairs, Some(input))?)?.json()?;
-    if !first["path"].as_str().is_some_and(|path| !path.is_empty()) {
-        return Err(Failure::unknown("Luau create returned no task path"));
+    Ok((ex.send(&Call::new(op, vec![], pairs, Some(input))?)?.json()?, op))
+}
+pub fn run(ex: &Executor<'_>, args: Args) -> Result<Value, Failure> {
+    let (first, op) = first(ex, args)?;
+    let resume =
+        first["path"].as_str().filter(|path| !path.is_empty()).map(|path| format!("updraft luau run --resume {path}"));
+    if let Some(resume) = &resume {
+        ex.resume(resume.clone());
     }
     let (task, failed) = match ex.finish(op, first) {
         Ok(task) => (task, false),
         Err(f) if f.code == 6 => (f.error["detail"].clone(), true),
-        Err(f) => return Err(f),
+        Err(f) => return Err(if let Some(resume) = resume { f.with("resume", json!(resume)) } else { f }),
     };
-    let path = task["path"].as_str().ok_or_else(|| Failure::unavailable("task has no path"))?;
-    let log_result = logs(ex, op, path);
+    let path = task["path"].as_str();
+    let log_result = path
+        .ok_or_else(|| Failure::unavailable("task has no path for reading logs"))
+        .and_then(|path| logs(ex, op, path));
     let mut detail = json!({"task":path,"state":task["state"],"results":task["output"]["results"].as_array().cloned().unwrap_or_default(),"logs":[],"logsComplete":true});
     match log_result {
         Ok(logs) => detail["logs"] = json!(logs),
         Err(error) => {
             detail["logsComplete"] = json!(false);
             detail["logError"] = error.error;
-            if !failed {
-                return Err(Failure::unavailable("task completed but logs could not be read").with("detail", detail));
-            }
+            ex.note("Warning: task logs could not be read; logsComplete is false.");
         }
     }
     if failed {
@@ -73,6 +104,9 @@ fn logs(ex: &Executor<'_>, from: &updraft_registry::Op, path: &str) -> Result<Ve
         .reader_of(from, &log_path)
         .map_err(|_| Failure::unavailable(format!("no reader matches task path {path}")).with("path", json!(path)))?;
     let result = ex.send_all(Call::new(op, decode_captures(captures.0), vec![], None)?, None, 100)?;
+    if result["nextPageToken"].as_str().is_some_and(|token| !token.is_empty()) {
+        return Err(Failure::unavailable("task logs exceeded 100 pages"));
+    }
     let entries = result["luauExecutionSessionTaskLogs"]
         .as_array()
         .ok_or_else(|| Failure::unavailable("logs response has no log array"))?;

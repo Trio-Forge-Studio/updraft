@@ -10,7 +10,7 @@ mod output;
 use crate::call::{Call, Source};
 use crate::cli::{AssetCommand, AuthCommand, Cli, Command, LuauCommand, PlaceCommand};
 use crate::exec::{Executor, Timing};
-use crate::outcome::Failure;
+use crate::outcome::{Acceptance, Failure};
 use crate::output::Output;
 use clap::Parser;
 use serde_json::{Value, json};
@@ -36,16 +36,20 @@ fn main() -> ExitCode {
         }
     };
     let mut output = Output::new(cli.verbose);
-    let (code, document) = match run(cli, &mut output) {
+    let acceptance = std::cell::RefCell::new(Acceptance::default());
+    let result = run(cli, &mut output, &acceptance);
+    let (code, document) = match acceptance.borrow().finish(result) {
         Ok(v) => (0, v),
         Err(f) => (f.code, f.document()),
     };
     if output.document(&document, code != 0).is_err() {
-        return ExitCode::from(7);
+        let failure =
+            acceptance.borrow().finish::<Value>(Err(Failure::unavailable("cannot write stdout"))).unwrap_err();
+        return ExitCode::from(failure.code);
     }
     ExitCode::from(code)
 }
-fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
+fn run(cli: Cli, output: &mut Output, acceptance: &std::cell::RefCell<Acceptance>) -> Result<Value, Failure> {
     let registry = &*REGISTRY;
     match &cli.command {
         Command::Find { query, limit } => return Ok(json!(registry.find(&query.join(" "), *limit))),
@@ -110,6 +114,7 @@ fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
                 retry_delay: cli.retry_delay.map(Duration::from_secs_f64),
             },
             output,
+            acceptance,
         )?;
         let profile = source.as_ref().and_then(|source| match source {
             auth::KeySource::Profile(name) => config.profiles.get(name),
@@ -127,7 +132,14 @@ fn run(cli: Cli, output: &mut Output) -> Result<Value, Failure> {
                 } else {
                     let reply = executor.send(&call)?;
                     if !args.no_wait && call.op().completion.is_some() {
-                        executor.finish(call.op(), reply.json()?)
+                        let mut first = reply.json()?;
+                        if call.op().method == Method::Get && first.is_object() && !first["path"].is_string() {
+                            let root = updraft_registry::path::Template::parse(&call.op().path).root_len();
+                            first["path"] = json!(
+                                call.path().trim_start_matches('/').split('/').skip(root).collect::<Vec<_>>().join("/")
+                            );
+                        }
+                        executor.finish(call.op(), first)
                     } else {
                         reply.json()
                     }

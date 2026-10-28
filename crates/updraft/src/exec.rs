@@ -1,6 +1,6 @@
 use crate::auth::Secret;
 use crate::call::Call;
-use crate::outcome::{Attempt, DEFAULT_ATTEMPTS, Failure, History, Verdict, judge, judge_read};
+use crate::outcome::{Acceptance, Attempt, DEFAULT_ATTEMPTS, Failure, History, Verdict, judge, judge_read};
 use crate::output::Output;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -10,6 +10,7 @@ use ureq::RequestExt;
 
 pub struct Executor<'a> {
     pub registry: &'static Registry,
+    acceptance: &'a std::cell::RefCell<Acceptance>,
     agent: ureq::Agent,
     downloads: Downloads,
     origin: Option<String>,
@@ -42,6 +43,7 @@ impl<'a> Executor<'a> {
         key: Option<&'a Secret>,
         timing: Timing,
         out: &'a mut Output,
+        acceptance: &'a std::cell::RefCell<Acceptance>,
     ) -> Result<Self, Failure> {
         if let Some(key) = key {
             out.redact_also(key);
@@ -82,7 +84,7 @@ impl<'a> Executor<'a> {
             allow_loopback: origin.is_some(),
             retry_delay: timing.retry_delay,
         };
-        Ok(Self { registry, agent, downloads, origin, key, timing, out })
+        Ok(Self { registry, acceptance, agent, downloads, origin, key, timing, out })
     }
     pub fn send(&self, call: &Call<'_>) -> Result<Reply, Failure> {
         let op = call.op();
@@ -112,6 +114,9 @@ impl<'a> Executor<'a> {
             let attempt = match request.with_agent(&self.agent).configure().timeout_global(Some(timeout)).run() {
                 Ok(mut response) => {
                     let status = response.status().as_u16();
+                    if (200..300).contains(&status) && op.safety == updraft_registry::Safety::Unsafe {
+                        self.acceptance.borrow_mut().record();
+                    }
                     self.out.trace(&format!("HTTP {status}"));
                     let retry_after = response
                         .headers()
@@ -285,6 +290,7 @@ impl<'a> Executor<'a> {
             })?;
             let call = Call::new(reader, decode_captures(captures.0), vec![], None)?;
             let resume = format!("updraft call GET {}", call.path());
+            self.resume(resume.clone());
             let pending = |detail| {
                 Failure::new(
                     8,
@@ -320,6 +326,9 @@ pub fn decode_captures(pairs: Vec<(String, String)>) -> Vec<(String, String)> {
         .collect()
 }
 impl Executor<'_> {
+    pub fn resume(&self, command: String) {
+        self.acceptance.borrow_mut().resume(command);
+    }
     pub fn note(&self, message: &str) {
         self.out.note(message);
     }
@@ -456,12 +465,14 @@ mod tests {
             t.body("bytes");
         });
         let mut output = Output::new(false);
+        let acceptance = std::cell::RefCell::new(Acceptance::default());
         let ex = Executor::new(
             &crate::REGISTRY,
             Some(server.base_url()),
             None,
             Timing { deadline: Duration::ZERO, poll_interval: Duration::ZERO, retry_delay: Some(Duration::ZERO) },
             &mut output,
+            &acceptance,
         )
         .unwrap();
         let dir = tempfile::tempdir().unwrap();
@@ -473,6 +484,7 @@ mod tests {
     #[test]
     fn download_reads_have_idle_budgets_and_binary_uploads_have_ten_minutes() {
         let mut output = Output::new(false);
+        let acceptance = std::cell::RefCell::new(Acceptance::default());
         let ex = Executor::new(
             &crate::REGISTRY,
             None,
@@ -483,6 +495,7 @@ mod tests {
                 retry_delay: Some(Duration::ZERO),
             },
             &mut output,
+            &acceptance,
         )
         .unwrap();
         let publish = crate::REGISTRY.op("universes.create-place-version").unwrap();

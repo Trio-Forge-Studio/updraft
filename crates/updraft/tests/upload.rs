@@ -405,7 +405,7 @@ fn luau_reads_all_log_pages_for_success_failure_and_cancellation() {
     }
 }
 #[test]
-fn luau_unmatched_path_exits_7_and_retains_the_path() {
+fn accepted_luau_unmatched_path_is_pending_and_retains_the_path() {
     let path = "universes/1/places/2/tasks/unmatched";
     let server = Server::new(vec![Response::json(json!({"path":path,"state":"QUEUED"}))]);
     let dir = tempfile::tempdir().unwrap();
@@ -415,7 +415,7 @@ fn luau_unmatched_path_exits_7_and_retains_the_path() {
         .args(["luau", "run", file.to_str().unwrap(), "--universe", "1", "--place", "2"])
         .output()
         .unwrap();
-    assert_eq!(code(&out), 7);
+    assert_eq!(code(&out), 8);
     assert_eq!(document(&out)["error"]["path"], path);
     assert_eq!(server.requests().len(), 1);
 }
@@ -437,8 +437,11 @@ fn luau_reads_stdin_and_preserves_script_failure_if_logs_fail() {
             .unwrap();
         child.stdin.take().unwrap().write_all(b"print('stdin')").unwrap();
         let out = child.wait_with_output().unwrap();
-        assert_eq!(code(&out), if state == "FAILED" { 6 } else { 7 });
-        assert_eq!(document(&out)["error"]["detail"]["logsComplete"], false);
+        assert_eq!(code(&out), if state == "FAILED" { 6 } else { 0 });
+        let d = document(&out);
+        let detail = if state == "FAILED" { &d["error"]["detail"] } else { &d };
+        assert_eq!(detail["logsComplete"], false);
+        assert!(String::from_utf8_lossy(&out.stderr).contains("logs could not be read"));
         assert!(String::from_utf8_lossy(&server.requests()[0].body).contains("print('stdin')"));
     }
 }
@@ -493,9 +496,9 @@ fn luau_poll_failure_retains_the_get_resume_command() {
         .args(["luau", "run", file.to_str().unwrap(), "--universe", "1", "--place", "2"])
         .output()
         .unwrap();
-    assert_eq!(code(&out), 7);
+    assert_eq!(code(&out), 8);
     let d = document(&out);
-    assert_eq!(d["error"]["resume"], format!("updraft call GET /cloud/v2/{path}"));
+    assert_eq!(d["error"]["resume"], format!("updraft luau run --resume {path}"));
     assert_eq!(d["error"]["detail"]["path"], path);
     assert_eq!(server.requests().len(), 4);
     assert_eq!(server.requests().iter().filter(|r| r.head.starts_with("POST ")).count(), 1);
@@ -526,4 +529,146 @@ fn pagination_defaults_to_one_hundred_pages() {
     assert_eq!(document(&out)["assetVersions"].as_array().unwrap().len(), 100);
     assert_eq!(document(&out)["nextPageToken"], "page-100");
     assert_eq!(server.requests().len(), 100, "unique next tokens cannot make pagination unbounded");
+}
+
+#[test]
+fn accepted_uploads_never_report_repeat_safe_poll_or_receipt_failures() {
+    let (_dir, file) = fixture();
+    for reply in [
+        Response::Body(401, "unauthorized".into()),
+        Response::Body(403, "refused".into()),
+        Response::Body(404, "missing".into()),
+        Response::Body(429, "slow".into()),
+        Response::Body(503, "broken".into()),
+        Response::Body(200, "not json".into()),
+        Response::Reset,
+        Response::json(json!({"done":true})),
+        Response::json(json!({"done":true,"response":{"assetId":42}})),
+    ] {
+        let server = Server::new(vec![
+            Response::json(json!({"path":"operations/safe-id"})),
+            reply,
+            Response::Reset,
+            Response::Reset,
+        ]);
+        let out = upload(&server, &file);
+        assert_eq!(code(&out), 8, "accepted uploads resume after any later failure: {}", document(&out));
+        assert_eq!(document(&out)["error"]["resume"], "updraft asset upload --resume safe-id");
+        assert_eq!(server.requests().iter().filter(|r| r.head.starts_with("POST ")).count(), 1);
+    }
+}
+
+#[test]
+fn generic_acceptance_maps_later_failures_and_readers_wait_on_resume() {
+    for reply in [
+        Response::Body(403, "forbidden".into()),
+        Response::Body(404, "missing".into()),
+        Response::Body(503, "down".into()),
+        Response::Body(200, "invalid".into()),
+    ] {
+        let server = Server::new(vec![
+            Response::json(json!({"path":"universes/1/memory-store/operations/x","done":false})),
+            reply,
+            Response::Reset,
+            Response::Reset,
+        ]);
+        let out = command(&server.origin)
+            .args(["call", "cloud.flush-universe-memory-store", "universe_id=1"])
+            .output()
+            .unwrap();
+        assert_eq!(code(&out), 8, "{}", document(&out));
+        assert_eq!(
+            document(&out)["error"]["resume"],
+            "updraft call GET /cloud/v2/universes/1/memory-store/operations/x"
+        );
+        assert_eq!(server.requests().iter().filter(|r| r.head.starts_with("POST ")).count(), 1);
+    }
+    let server = Server::new(vec![Response::json(json!({}))]);
+    let out =
+        command(&server.origin).args(["call", "cloud.flush-universe-memory-store", "universe_id=1"]).output().unwrap();
+    assert_eq!(code(&out), 5, "a missing operation identity cannot authorize another write");
+    assert!(document(&out)["error"]["hint"].as_str().unwrap().contains("Creations"));
+}
+
+#[test]
+fn luau_resume_waits_reads_logs_and_never_posts() {
+    let path = "universes/1/places/2/versions/3/luau-execution-sessions/s/tasks/t";
+    for state in ["COMPLETE", "FAILED", "CANCELLED"] {
+        let server = Server::new(vec![
+            Response::json(json!({"state":"PROCESSING"})),
+            Response::json(json!({"state":state,"output":{"results":[42]}})),
+            Response::json(json!({"luauExecutionSessionTaskLogs":[{"messages":["resumed"]}]})),
+        ]);
+        let out = command(&server.origin).args(["luau", "run", "--resume", path]).output().unwrap();
+        assert_eq!(code(&out), if state == "COMPLETE" { 0 } else { 6 }, "{}", document(&out));
+        let d = document(&out);
+        let detail = if state == "COMPLETE" { &d } else { &d["error"]["detail"] };
+        assert_eq!(detail["logs"], json!(["resumed"]));
+        assert_eq!(server.requests().len(), 3);
+        assert!(server.requests().iter().all(|r| r.head.starts_with("GET ")));
+    }
+    for (status, expected) in [(401, 3), (403, 3), (404, 4), (503, 7)] {
+        let server = Server::new(vec![
+            Response::Body(status, "failed".into()),
+            Response::Body(status, "failed".into()),
+            Response::Body(status, "failed".into()),
+        ]);
+        let out = command(&server.origin).args(["luau", "run", "--resume", path]).output().unwrap();
+        assert_eq!(code(&out), expected, "a GET-only resume keeps read failure codes");
+        assert!(server.requests().iter().all(|r| r.head.starts_with("GET ")));
+    }
+}
+
+#[test]
+fn generic_readers_wait_by_default_and_no_wait_reads_once() {
+    for no_wait in [false, true] {
+        let server = Server::new(vec![
+            Response::json(json!({"done":false})),
+            Response::json(json!({"done":true,"response":{"ok":true}})),
+        ]);
+        let mut cmd = command(&server.origin);
+        cmd.args(["call", "GET", "/assets/v1/operations/x"]);
+        if no_wait {
+            cmd.arg("--no-wait");
+        }
+        let out = cmd.output().unwrap();
+        assert_eq!(code(&out), 0, "{}", document(&out));
+        assert_eq!(document(&out)["done"], !no_wait);
+        assert_eq!(server.requests().len(), if no_wait { 1 } else { 2 });
+        assert!(server.requests().iter().all(|r| r.head.starts_with("GET ")));
+    }
+}
+
+#[test]
+fn terminal_luau_without_a_log_path_keeps_its_terminal_result() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("probe.luau");
+    std::fs::write(&script, "return 42").unwrap();
+    for state in ["COMPLETE", "FAILED", "CANCELLED"] {
+        let server = Server::new(vec![Response::json(json!({"state":state,"output":{"results":[42]}}))]);
+        let out = command(&server.origin)
+            .args(["luau", "run", script.to_str().unwrap(), "--universe", "1", "--place", "2"])
+            .output()
+            .unwrap();
+        assert_eq!(code(&out), if state == "COMPLETE" { 0 } else { 6 }, "{}", document(&out));
+        let d = document(&out);
+        let detail = if state == "COMPLETE" { &d } else { &d["error"]["detail"] };
+        assert_eq!(detail["logsComplete"], false);
+        assert_eq!(server.requests().len(), 1);
+    }
+}
+
+#[test]
+fn accepted_write_with_a_closed_stdout_keeps_an_unsafe_outcome_code() {
+    let server = Server::new(vec![Response::json(json!({}))]);
+    let mut child = command(&server.origin)
+        .args(["call", "assets.archive-asset", "assetId=42"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(child.stdout.take());
+    let out = child.wait_with_output().unwrap();
+    assert_eq!(code(&out), 5, "failure to deliver stdout cannot authorize another write");
+    assert_eq!(server.requests().len(), 1);
 }

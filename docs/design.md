@@ -13,15 +13,17 @@ Install with rokit (`updraft = "Trio-Forge-Studio/updraft@0.1.0"`). Every comman
 | exit | `error.kind` | meaning | safe to repeat |
 |---|---|---|---|
 | 0 | | success | |
-| 2 | `usage` | bad arguments, unknown operation, unreadable file, malformed JSON. Nothing sent. | after fixing input |
+| 2 | `usage` | bad arguments, unknown operation, unreadable file, malformed JSON, or an unresizable read page. No unsafe request was accepted. | after fixing input |
 | 3 | `auth` | no key, or HTTP 401/403. Prints `requiredScopes` and `keySource`. | after fixing the key |
 | 4 | `rejected` | another 4xx. The request had no effect. | after fixing input |
-| 5 | `outcome_unknown` | a non-idempotent request may have acted and its response was lost | no. Check first. |
+| 5 | `outcome_unknown` | a non-idempotent request may have acted, or was accepted without a pollable identity | no. Check first. |
 | 6 | `remote_failure` | the work ran and failed: an Operation error, a failed Luau script | depends on the work |
-| 7 | `unavailable` | not processed: 429, a request that never left, or retries ran out on a read | yes |
-| 8 | `pending` | accepted and still running at the deadline. `error.resume` is the command to continue. | run `resume` |
+| 7 | `unavailable` | an unaccepted request, rate limit, or failure of a read, an idempotent request, or local output | yes |
+| 8 | `pending` | accepted work is unfinished or a later poll or receipt check failed. `error.resume` is the command to continue. | run `resume` |
 
 A `Retry-After` above 300 seconds stops retries and reports the requested value in `error.retryAfter` with the applicable exit code.
+
+Once an unsafe request gets a 2xx, a command-wide acceptance record maps every later failure to 6 for remote failure, 8 with a GET-only resume when the resource is known, or 5 with a Creations check when it is not. A GET-only resume keeps exit codes 3, 4, and 7. A COMPLETE Luau task whose logs cannot be read succeeds with `logsComplete: false` and a stderr warning. `updraft luau run --resume <task path>` waits for terminal state, reads logs, and exits 6 for FAILED or CANCELLED. Generic `call` readers also wait by default, and `--no-wait` reads once.
 
 updraft never sends an `unsafe` request twice on its own, even after a 429 or a refused connection. Exit 7 tells the caller that repeating is safe, and the caller decides. The one exception is an operation whose overlay entry has a retry policy, which today is only place publishing. If any of its attempts got a 5xx or lost its response and no later attempt succeeded, it exits 5, not 7 or 4.
 
@@ -262,7 +264,7 @@ Rejected from A: choosing a profile by matching declared scopes. It depends on w
 
 ## Open questions and risks
 
-- Does the Luau create response's `path` always use the long form with `versions/` and `luau-execution-sessions/`? Only that form matches a GET template in the spec. The resource schema lists three other forms. Until a live run shows one, an unmatched task path exits 7 with the path in the error, and the overlay gains a reader when one is seen.
+- Does the Luau create response's `path` always use the long form with `versions/` and `luau-execution-sessions/`? Only that form matches a GET template in the spec. The resource schema lists three other forms. An accepted task with an unmatched path exits 8 with its GET-only Luau resume. A resume reports the reader failure with code 7 until the overlay gains a matching reader.
 - Which hosts does asset delivery's `location` point to? A key with `legacy-asset:manage` is needed to see. The download client accepts any HTTPS host because it never holds a key.
 - `UPDRAFT_ORIGIN` stays in release builds so tests drive the real binary, and a warning prints on stderr when it is set. Anyone who can set it can also read the key variables, so it grants nothing new.
 - `describe` shows `legacy` and `stability` (125 of the 299 operations are experimental). `call` prints no warning for them.

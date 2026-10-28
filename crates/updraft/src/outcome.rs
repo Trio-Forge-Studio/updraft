@@ -3,6 +3,50 @@ use updraft_registry::{Op, RetryPolicy, Safety};
 
 pub const DEFAULT_ATTEMPTS: u8 = 3;
 
+#[derive(Default)]
+pub enum Acceptance {
+    #[default]
+    None,
+    Accepted {
+        resume: Option<String>,
+    },
+}
+impl Acceptance {
+    pub fn record(&mut self) {
+        if matches!(self, Self::None) {
+            *self = Self::Accepted { resume: None };
+        }
+    }
+    pub fn resume(&mut self, command: String) {
+        if let Self::Accepted { resume } = self {
+            resume.get_or_insert(command);
+        }
+    }
+    pub fn finish<T>(&self, result: Result<T, Failure>) -> Result<T, Failure> {
+        result.map_err(|mut failure| {
+            let Self::Accepted { resume } = self else { return failure };
+            if failure.code == 6 {
+                return failure;
+            }
+            let resume = resume.as_deref().or_else(|| failure.error["resume"].as_str()).map(str::to_owned);
+            if let Some(resume) = resume {
+                failure.code = 8;
+                failure.error["kind"] = json!("pending");
+                failure.error["resume"] = json!(resume);
+            } else {
+                failure.code = 5;
+                failure.error["kind"] = json!("outcome_unknown");
+                failure
+                    .error
+                    .as_object_mut()
+                    .expect("a failure is an object")
+                    .entry("hint")
+                    .or_insert(json!("Check the resource in Creations before repeating this request."));
+            }
+            failure
+        })
+    }
+}
 #[derive(Debug)]
 pub struct Failure {
     pub code: u8,
@@ -20,7 +64,7 @@ impl Failure {
     }
     pub fn unknown(message: impl Into<String>) -> Self {
         Self::new(5, "outcome_unknown", message)
-            .with("hint", json!("Check the remote resource before repeating this request."))
+            .with("hint", json!("Check the resource in Creations before repeating this request."))
     }
     pub fn remote(message: impl Into<String>, detail: Value) -> Self {
         Self::new(6, "remote_failure", message).with("detail", detail)
@@ -116,7 +160,7 @@ fn judge_policy(safety: Safety, retry: Option<&RetryPolicy>, attempt: Attempt, h
         let mut failure = failure;
         failure.code = 5;
         failure.error["kind"] = json!("outcome_unknown");
-        failure.error["hint"] = json!("Check the remote resource before repeating this request.");
+        failure.error["hint"] = json!("Check the resource in Creations before repeating this request.");
         Verdict::Fail(failure)
     } else {
         Verdict::Fail(failure)
