@@ -63,8 +63,7 @@ fn rebuild(
     };
     let commit =
         commit.or_else(|| previous.as_ref().map(|registry| registry.source.commit.clone())).unwrap_or_default();
-    let source =
-        SpecSource { repository: SPEC_REPOSITORY.to_owned(), commit, sha256: format!("{:x}", Sha256::digest(&bytes)) };
+    let source = SpecSource { repository: SPEC_REPOSITORY.to_owned(), commit, sha256: spec_digest(&bytes) };
     let (registry, report) =
         build::build(build::Input { spec: &spec, source, previous: previous.as_ref(), overlay: &overlay })
             .map_err(|errors| errors.join("\n"))?;
@@ -90,6 +89,17 @@ fn rebuild(
     });
     println!("{}", serde_json::to_string_pretty(&summary).map_err(|e| e.to_string())?);
     Ok(())
+}
+
+// A Windows checkout can hold CRLF bytes, so hash the text the repository stores.
+fn spec_digest(bytes: &[u8]) -> String {
+    let mut normalized = Vec::with_capacity(bytes.len());
+    for (at, byte) in bytes.iter().enumerate() {
+        if *byte != b'\r' || bytes.get(at + 1) != Some(&b'\n') {
+            normalized.push(*byte);
+        }
+    }
+    format!("{:x}", Sha256::digest(&normalized))
 }
 
 fn update(spec_path: &Path, registry_path: &Path, overlay_path: &Path) -> Result<(), String> {

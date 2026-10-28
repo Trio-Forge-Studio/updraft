@@ -725,3 +725,12 @@ fn final_name_fixture_covers_every_namespace_and_limits_action_length() {
         assert!(op.name.split_once('.').unwrap().1.split('-').count() <= 4, "{}", op.name);
     }
 }
+
+#[test]
+fn spec_hash_ignores_checkout_line_endings() {
+    let (_, _, registry) = inputs();
+    let lf = String::from_utf8(include_bytes!("../../spec/openapi.json").to_vec()).unwrap().replace("\r\n", "\n");
+    let crlf = lf.replace('\n', "\r\n");
+    assert_eq!(spec_digest(lf.as_bytes()), registry.source.sha256);
+    assert_eq!(spec_digest(crlf.as_bytes()), registry.source.sha256);
+}
