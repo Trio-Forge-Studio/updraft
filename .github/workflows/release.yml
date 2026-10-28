@@ -18,14 +18,15 @@ jobs:
           - { os: macos-latest, target: aarch64-apple-darwin, asset: macos-aarch64, exe: updraft }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@1.99.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
         with:
+          toolchain: 1.99.0
           targets: ${{ matrix.target }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.13"
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a
       - name: Tag matches Cargo version
         shell: python
         run: |
@@ -42,6 +43,20 @@ jobs:
       - run: cargo xtask spec check
       - run: cargo test --workspace --locked
       - run: cargo build --release --locked --package updraft --target ${{ matrix.target }}
+      - name: Run the built binary
+        shell: python
+        env:
+          UPDRAFT_TARGET: ${{ matrix.target }}
+          UPDRAFT_EXE: ${{ matrix.exe }}
+        run: |
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+          binary = Path("target") / os.environ["UPDRAFT_TARGET"] / "release" / os.environ["UPDRAFT_EXE"]
+          subprocess.run([str(binary), "--version"], check=True)
+          result = subprocess.run([str(binary), "find", "asset"], check=True, capture_output=True, text=True)
+          assert json.loads(result.stdout), "the built binary must find asset operations"
       - name: Zip for rokit
         shell: python
         env:
@@ -63,7 +78,7 @@ jobs:
               assert archive.read(binary) == source.read_bytes(), "the archive must contain the built binary"
               if os.name != "nt":
                   assert archive.getinfo(binary).external_attr >> 16 & 0o111, "Unix binary must remain executable"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ matrix.asset }}
           path: updraft-*.zip
@@ -75,7 +90,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           merge-multiple: true
           path: dist

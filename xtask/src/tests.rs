@@ -728,3 +728,31 @@ fn spec_hash_ignores_checkout_line_endings() {
     assert_eq!(spec_digest(lf.as_bytes()), registry.source.sha256);
     assert_eq!(spec_digest(crlf.as_bytes()), registry.source.sha256);
 }
+
+#[test]
+fn commits_lookup_authenticates_with_the_supplied_github_token() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/commits", listener.local_addr().unwrap());
+    let thread = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+        let mut request = vec![];
+        let mut buffer = [0; 1024];
+        while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+            let n = socket.read(&mut buffer).unwrap();
+            assert!(n > 0, "the commits request includes complete headers");
+            request.extend_from_slice(&buffer[..n]);
+        }
+        let body = r#"[{"sha":"0123456789012345678901234567890123456789"}]"#;
+        write!(socket, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+        String::from_utf8(request).unwrap()
+    });
+    let sha = latest_commit(&url, Some("github-test-token")).unwrap();
+    let request = thread.join().unwrap().to_ascii_lowercase();
+    assert_eq!(sha, "0123456789012345678901234567890123456789");
+    assert!(
+        request.contains("authorization: bearer github-test-token"),
+        "the commits API uses the supplied read-only token"
+    );
+}
