@@ -1,0 +1,22 @@
+[package]
+name = "updraft"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+updraft-registry = { path = "../registry" }
+serde.workspace = true
+serde_json.workspace = true
+clap = { version = "4", features = ["derive", "env"] }
+ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+toml = "1"
+dirs = "6"
+percent-encoding = "2"
+url = "2"
+tempfile = "3"
+
+[dev-dependencies]
+httpmock = "0.8"
+

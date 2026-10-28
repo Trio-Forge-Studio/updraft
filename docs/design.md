@@ -4,7 +4,7 @@
 
 updraft must reach all 299 API-key operations in Roblox's OpenAPI document. It must also run four flows the spec can't express alone. Its callers are agents and Node scripts, so the contract is one JSON document on stdout and an exit code that says whether a repeat is safe. The spec is large (3.9 MB) and inconsistent. 108 operations have no `operationId`. The ids that exist mix three styles. Place publishing declares no body. Asset delivery declares no response. `listAssetVersions` declares a bare array but pages. Two templates collide (`tables/{assetId}` and `tables/{tableId}`). The two endpoints agents use most for checking keys and mapping places (`api-keys/v1/introspect` and `universes/v1/places/{placeId}/universe`) are missing entirely. The design has to survive weekly spec churn without renaming commands that scripts depend on. It also has to keep Fragile Delivery's upload rules: never re-POST, tell rejected from unknown, resume by operation id, and redact the key.
 
-updraft makes the spec data. A build step compiles the spec plus a small hand-written overlay into a checked-in registry. The binary embeds the registry, and one executor interprets it for every request, including every request the four flows send.
+updraft makes the spec data. A build step compiles the spec plus a small hand-written overlay into a checked-in registry. The binary embeds the registry, and one executor interprets it for every request, including the four flows. Downloads use a separate key-free request path and the same outcome table.
 
 ## Usage (caller's view)
 
@@ -13,13 +13,17 @@ Install with rokit (`updraft = "Trio-Forge-Studio/updraft@0.1.0"`). Every comman
 | exit | `error.kind` | meaning | safe to repeat |
 |---|---|---|---|
 | 0 | | success | |
-| 2 | `usage` | bad arguments, unknown operation, unreadable file, malformed JSON. Nothing sent. | after fixing input |
+| 2 | `usage` | bad arguments, unknown operation, unreadable file, malformed JSON, or an unresizable read page. No unsafe request was accepted. | after fixing input |
 | 3 | `auth` | no key, or HTTP 401/403. Prints `requiredScopes` and `keySource`. | after fixing the key |
 | 4 | `rejected` | another 4xx. The request had no effect. | after fixing input |
-| 5 | `outcome_unknown` | a non-idempotent request may have acted and its response was lost | no. Check first. |
+| 5 | `outcome_unknown` | a non-idempotent request may have acted, or was accepted without a pollable identity | no. Check first. |
 | 6 | `remote_failure` | the work ran and failed: an Operation error, a failed Luau script | depends on the work |
-| 7 | `unavailable` | not processed: 429, a request that never left, or retries ran out on a read | yes |
-| 8 | `pending` | accepted and still running at the deadline. `error.resume` is the command to continue. | run `resume` |
+| 7 | `unavailable` | an unaccepted request, rate limit, or failure of a read, an idempotent request, or local output | yes |
+| 8 | `pending` | accepted work is unfinished or a later poll or receipt check failed. `error.resume` is the command to continue. | run `resume` |
+
+A `Retry-After` above 300 seconds stops retries and reports the requested value in `error.retryAfter`, preserving an integer outside the supported range as a string with the applicable exit code.
+
+Once an unsafe request gets a 2xx, a command-wide acceptance record maps every later failure to 6 for remote failure, 8 with a GET-only resume when exactly one reader can poll the resource, or 5 with a Creations check when it is not. A GET-only resume keeps exit codes 3, 4, and 7. A classified failure keeps its exit code if stdout cannot be written. A COMPLETE Luau task whose logs cannot be read succeeds with `logsComplete: false` and a stderr warning. Task resource paths are validated before they enter a recovery command. `updraft luau run --resume <task path>` waits for terminal state, reads logs, and exits 6 for FAILED or CANCELLED. Generic `call` readers also wait by default, and `--no-wait` reads once.
 
 updraft never sends an `unsafe` request twice on its own, even after a 429 or a refused connection. Exit 7 tells the caller that repeating is safe, and the caller decides. The one exception is an operation whose overlay entry has a retry policy, which today is only place publishing. If any of its attempts got a 5xx or lost its response and no later attempt succeeded, it exits 5, not 7 or 4.
 
@@ -49,7 +53,7 @@ $ updraft call universes.get-place-universe placeId=1818
 exit 0
 ```
 
-Check that a key works and see what it can do. `auth check` sends the key to `POST /api-keys/v1/introspect`, which answers with scopes such as `{"name":"asset","operations":["read","write"]}` (measured on 2026-10-27). updraft flattens them to `asset:read` and `asset:write`.
+Check that a key works and see what it can do. `call api-keys.introspect` and `auth check` use `Auth::BodyKey { field: "apiKey" }`. The executor supplies the selected key and rejects caller bodies before reading them. `auth check` sends the key to `POST /api-keys/v1/introspect`, which answers with scopes such as `{"name":"asset","operations":["read","write"]}` (measured on 2026-10-27). updraft flattens them to `asset:read` and `asset:write`.
 
 ```console
 $ updraft auth check
@@ -80,7 +84,7 @@ $ updraft describe universes.create-place-version
 exit 0
 ```
 
-A paged list follows every page with `--all` and prints one page-shaped document. A long-running operation waits by default. `--no-wait` prints the first reply.
+A paged list follows pages with `--all` and prints one page-shaped document. `--max-pages` defaults to 100. Reaching either the page cap or `--max-items` preserves the continuation token. An overfull page that cannot be resized exits 2. A long-running operation waits by default. `--no-wait` prints the first reply.
 
 ```console
 $ updraft call data-stores.list-entries universe_id=13058 data_store_id=Profiles --all --max-items 500
@@ -143,6 +147,8 @@ exit 6
 A key never appears in argv. Locally, profiles in `%APPDATA%\updraft\config.toml` name an environment variable or a file.
 
 ```toml
+default_profile = "assets"
+
 [profiles.assets]
 key_env = "ROBLOX_ASSETS_API_KEY"
 group = 35
@@ -153,7 +159,6 @@ key_env = "ROBLOX_API_KEY"
 [profiles.luau]
 key_file = "C:/Users/Admin/.secrets/roblox-luau.key"
 
-default_profile = "assets"
 ```
 
 Precedence is `--profile`, then `UPDRAFT_PROFILE`, then `UPDRAFT_API_KEY`, then `default_profile`. A profile named explicitly that is missing or empty fails with exit 3. It never falls through to another key, and updraft never retries with a different key after a 401 or 403. Instead, the auth error lists the operation's required scopes and the configured profile names, so the caller can pick one. When the spec declares no scopes for an operation (7 of the 299), `requiredScopes` is `null` and `scopeMetadata` is `"unknown"`, never an empty list. Introspection requires no scopes, so its body-key auth reports `requiredScopes: []` with `scopeMetadata: "declared"`. CI sets one variable.
@@ -190,9 +195,9 @@ The v1 and v2 `followings` and `develop` APIs share their namespaces. The two fo
 
 **One matcher, three callers.** `path::Template` matches concrete paths against templates. It serves `call GET /url`, and it serves polling. An `Operation` reply carries `path` (`operations/9f1c`, `universes/1/memory-store/operations/x`), and `Registry::reader_of` finds the GET operation under the same API root whose template matches. A Luau task's `path` resolves the same way. Tied readers return an ambiguity error. The build verifies that each completion reader resolves exactly once to itself. So no poller link is stored, and a new LRO family in the spec works without code. The `one_matcher_serves_urls_and_poll_paths` test proves it against the real registry for assets, memory store, Luau, and the ambiguous localization pair.
 
-**One executor.** `Executor::send(&Call)` is the only place a request is made. A `Call` has private fields, so it can only be built by `Call::new(op, preset, pairs, body)`. `Call::new` binds folded names to parameters, checks required ones and value kinds, and checks the body against `op.body`. So the executor trusts its input, per principle-boundary-discipline. `send` loops over a pure `judge(op, attempt, n) -> Verdict` whose table is the whole retry and exit-code policy. `send_all` follows pages. `finish` drives a `Completion`. `download` fetches a returned URL with a second client that never holds a key, follows at most five HTTPS redirects, and streams into a temporary file that it renames into place. Because these four methods hold the policy, each flow should stay under 60 lines.
+**One executor.** `Executor::send(&Call)` owns registry requests. `Executor::download(url, file, overwrite)` delegates to a downloader that holds no key or registry operation. A `Call` has private fields, so it can only be built by `Call::new(op, preset, pairs, body)`. `Call::new` binds folded names to parameters, checks required ones and value kinds, and checks the body against `op.body`. So the executor trusts its input, per principle-boundary-discipline. `send` loops over a pure `judge(op, attempt, n) -> Verdict` whose table is the whole retry and exit-code policy. `send_all` follows pages. `finish` drives a `Completion`. `download` fetches a returned URL with a second client that never holds a key, follows at most five HTTPS redirects, and streams into a temporary file that it renames into place. Downloads have a 30-second idle read timeout and no total duration cap. Their retry sleeps stop at `--deadline`. CDN failures report `rejected` or `unavailable` without API-key metadata. Binary and multipart file requests get 600 seconds, while poll requests get at most 30 seconds and respect the remaining deadline. These methods own transport policy. The flows own input preparation, result receipts, and command-specific recovery. Luau also owns GET-only resumption and log collection.
 
-**Keys.** `Secret` has no `Debug`, `Display` or `Serialize`. `Output` is the only writer to stdout and stderr and replaces every registered secret, so a key echoed by the server can't print. `auth::choose` is pure and picks a `KeySource` once per command from the flags, environment and config, so a create and its polls never use different keys. Redaction also covers the key's JSON-escaped and percent-encoded forms, and errors strip signed query strings from URLs before they print. The executor disables redirects so the header can't follow a 3xx to another host.
+**Keys.** `Secret` has no `Debug`, `Display` or `Serialize`. `Output` is the only writer to stdout and stderr and replaces every registered secret, so a key echoed by the server can't print. `auth::choose` is pure and picks a `KeySource` once per command from the flags, environment and config, so a create and its polls never use different keys. HTTP errors have a short status message and a parsed JSON `error.detail`, or text detail for a non-JSON body. Poll errors keep the last known resource in `error.last`. An accepted unsafe response with invalid JSON uses `invalid JSON response` as its message and stores the raw text in `error.detail`. Redaction also covers JSON slash escapes, Unicode escapes, and mixed-case percent escapes of every key byte, including letters, and errors strip signed query strings from URLs before they print. The executor disables redirects so the header can't follow a 3xx to another host.
 
 **Interface depth.** The public surface is seven verbs (`find`, `describe`, `call`, `asset`, `place`, `luau`, `auth`) and five global flags. `call` hides parameter location, encoding, body media, multipart assembly, pagination, polling, retries and key choice behind `name=value` pairs. An agent learns the exit table and `find`, and has the whole API. Parameters as `name=value` instead of generated `--flags` mean an operation's parameters can never collide with updraft's own options, by construction.
 
@@ -259,7 +264,7 @@ Rejected from A: choosing a profile by matching declared scopes. It depends on w
 
 ## Open questions and risks
 
-- Does the Luau create response's `path` always use the long form with `versions/` and `luau-execution-sessions/`? Only that form matches a GET template in the spec. The resource schema lists three other forms. Until a live run shows one, an unmatched task path exits 7 with the path in the error, and the overlay gains a reader when one is seen.
+- Does the Luau create response's `path` always use the long form with `versions/` and `luau-execution-sessions/`? Only that form matches a GET template in the spec. The resource schema lists three other forms. An accepted task with an unmatched path exits 5 without a resume command. A resume is emitted only when exactly one GET reader matches the task path.
 - Which hosts does asset delivery's `location` point to? A key with `legacy-asset:manage` is needed to see. The download client accepts any HTTPS host because it never holds a key.
 - `UPDRAFT_ORIGIN` stays in release builds so tests drive the real binary, and a warning prints on stderr when it is set. Anyone who can set it can also read the key variables, so it grants nothing new.
 - `describe` shows `legacy` and `stability` (125 of the 299 operations are experimental). `call` prints no warning for them.

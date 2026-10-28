@@ -1,0 +1,5 @@
+assets.get-asset
+creator-configs.get-experimentation-experiment
+creator-configs.get-configs
+game-internationalization.get-developer-product-icons
+game-internationalization.get-game-pass-icons
